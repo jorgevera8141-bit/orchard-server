@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchard Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;background:#002244;color:#ffffff;min-height:100vh}
+  
+  /* STRIPE BG */
+  body::before{
+    content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+    background-image:repeating-linear-gradient(45deg,transparent 0px,transparent 18px,rgba(105,190,40,0.3) 18px,rgba(105,190,40,0.3) 24px,transparent 24px,transparent 30px,rgba(255,255,255,0.12) 30px,rgba(255,255,255,0.12) 34px);
+    pointer-events:none;z-index:0;
+  }
+
+  .container{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:20px}
+
+  /* HEADER */
+  .header{background:#001428;border-bottom:2px solid #69BE28;padding:16px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;border-radius:10px}
+  .header h1{font-size:18px;font-weight:700;color:#fff}
+  .header p{font-size:11px;color:#69BE28;margin-top:3px}
+  .header-links{display:flex;gap:10px}
+  .header-link{color:#69BE28;text-decoration:none;font-size:12px;border:1px solid #69BE28;padding:6px 12px;border-radius:6px}
+
+  /* FILTERS */
+  .filters-card{background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.2);border-radius:12px;padding:20px;margin-bottom:20px}
+  .filters-title{font-size:11px;color:#69BE28;font-family:monospace;text-transform:uppercase;letter-spacing:2px;margin-bottom:14px}
+  .filters-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+  .filter-group label{font-size:10px;color:#69BE28;font-family:monospace;text-transform:uppercase;display:block;margin-bottom:4px}
+  .filter-group select,.filter-group input{
+    width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);
+    border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none;
+  }
+  .filter-group select option{background:#001428}
+  .filter-actions{display:flex;gap:10px}
+  .btn-search{background:#69BE28;color:#002244;border:none;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:700;cursor:pointer}
+  .btn-clear{background:none;color:#69BE28;border:1px solid #69BE28;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:700;cursor:pointer}
+  .btn-export{background:none;color:#aaa;border:1px solid #444;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:700;cursor:pointer}
+
+  /* TOTALS */
+  .totals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+  .total-card{background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.2);border-radius:10px;padding:14px;text-align:center}
+  .total-num{font-size:28px;font-weight:700;color:#69BE28;font-family:Georgia,serif}
+  .total-label{font-size:10px;color:#aaa;font-family:monospace;text-transform:uppercase;margin-top:4px}
+  .total-sub{font-size:10px;color:#69BE28;margin-top:2px}
+
+  /* TABLE */
+  .table-card{background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.2);border-radius:12px;overflow:hidden}
+  .table-header{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(105,190,40,0.15)}
+  .table-title{font-size:12px;color:#69BE28;font-family:monospace;text-transform:uppercase;letter-spacing:1px}
+  .table-count{font-size:11px;color:#aaa}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:10px;color:#69BE28;font-family:monospace;text-transform:uppercase;padding:10px 16px;text-align:left;border-bottom:1px solid rgba(105,190,40,0.15);background:rgba(0,10,30,0.5)}
+  td{font-size:12px;color:#ccc;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05)}
+  tr:hover td{background:rgba(105,190,40,0.05)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace}
+  .badge-irrigation{background:rgba(0,47,108,0.8);color:#69BE28;border:1px solid #4466aa}
+  .badge-fertilizer{background:rgba(26,74,26,0.8);color:#69BE28;border:1px solid #69BE28}
+  .badge-foggers{background:rgba(50,50,80,0.8);color:#aaa;border:1px solid #666}
+  .badge-open{background:rgba(255,204,0,0.2);color:#ffcc00;border:1px solid #ffcc00}
+  .badge-completed{background:rgba(105,190,40,0.15);color:#69BE28;border:1px solid #69BE28}
+
+  .spinner{width:20px;height:20px;border:2px solid rgba(105,190,40,0.2);border-top-color:#69BE28;border-radius:50%;animation:spin 0.75s linear infinite;margin:40px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty{text-align:center;padding:40px;color:#4a8a28;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <h1>🌿 Orchard Admin</h1>
+      <p>McDougall Family Farming — Session Records</p>
+    </div>
+    <div class="header-links">
+      <a href="/" class="header-link">← Field App</a>
+    </div>
+  </div>
+
+  <!-- TOTALS -->
+  <div class="totals-grid" id="totals-grid">
+    <div class="total-card"><div class="spinner"></div></div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters-card">
+    <div class="filters-title">Filters</div>
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label>Block</label>
+        <select id="f-block">
+          <option value="">All Blocks</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Session Type</label>
+        <select id="f-type">
+          <option value="">All Types</option>
+          <option value="Irrigation">Irrigation</option>
+          <option value="Fertilizer">Fertilizer</option>
+          <option value="Foggers">Foggers</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Irrigation Type</label>
+        <select id="f-irr">
+          <option value="">All</option>
+          <option value="Sprinkler r10">Sprinkler r10</option>
+          <option value="Drip">Drip</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="">All</option>
+          <option value="open">Open</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" id="f-from">
+      </div>
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" id="f-to">
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-active" onclick="showActive()" style="background:rgba(255,204,0,0.2);border:1px solid #ffcc00;color:#ffcc00;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:700;cursor:pointer">🟡 Active Now</button>
+      <button class="btn-search" onclick="search()">Search</button>
+      <button class="btn-clear" onclick="clearFilters()">Clear</button>
+      <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Session Records</div>
+      <div class="table-count" id="table-count">—</div>
+    </div>
+    <div id="table-body"><div class="spinner"></div></div>
+  </div>
+
+</div>
+
+<script>
+var currentSessions = [];
+
+// Load blocks for filter dropdown
+fetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
+  var sel = document.getElementById('f-block');
+  data.blocks.forEach(function(b){
+    var opt = document.createElement('option');
+    opt.value = b.name;
+    opt.textContent = b.name;
+    sel.appendChild(opt);
+  });
+});
+
+function formatDate(str){
+  if(!str) return '—';
+  try{
+    var d = new Date(str);
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'})+
+           ' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
+  }catch(e){return str;}
+}
+function showActive(){
+  document.getElementById('f-block').value='';
+  document.getElementById('f-type').value='';
+  document.getElementById('f-irr').value='';
+  document.getElementById('f-status').value='open';
+  document.getElementById('f-from').value='';
+  document.getElementById('f-to').value='';
+  search();
+}
+function search(){
+  var params = new URLSearchParams();
+  var block = document.getElementById('f-block').value;
+  var type = document.getElementById('f-type').value;
+  var irr = document.getElementById('f-irr').value;
+  var status = document.getElementById('f-status').value;
+  var from = document.getElementById('f-from').value;
+  var to = document.getElementById('f-to').value;
+
+  if(block) params.append('block', block);
+  if(type) params.append('type', type);
+  if(irr) params.append('irr_type', irr);
+  if(status) params.append('status', status);
+  if(from) params.append('from', from);
+  if(to) params.append('to', to);
+
+  document.getElementById('table-body').innerHTML = '<div class="spinner"></div>';
+
+  fetch('/api/admin/sessions?'+params.toString())
+    .then(r=>r.json())
+    .then(function(data){
+      currentSessions = data.sessions;
+      renderTable(data.sessions);
+      renderTotals(data.totals);
+    });
+}
+
+function renderTotals(totals){
+  if(!totals || !totals.length){
+    document.getElementById('totals-grid').innerHTML = '<div class="total-card"><div class="total-num">0</div><div class="total-label">Sessions</div></div>';
+    return;
+  }
+  var html = '';
+  var totalHours = 0;
+  var totalCount = 0;
+  totals.forEach(function(t){
+    totalHours += parseFloat(t.total_hours||0);
+    totalCount += parseInt(t.count||0);
+    html += '<div class="total-card">'+
+      '<div class="total-num">'+t.total_hours+'</div>'+
+      '<div class="total-label">Hours</div>'+
+      '<div class="total-sub">'+t.session_type+(t.irr_type&&t.irr_type!==t.session_type?' · '+t.irr_type:'')+'</div>'+
+      '</div>';
+  });
+  html = '<div class="total-card"><div class="total-num">'+totalCount+'</div><div class="total-label">Total Sessions</div></div>'+
+         '<div class="total-card"><div class="total-num">'+totalHours.toFixed(1)+'</div><div class="total-label">Total Hours</div></div>'+
+         html;
+  document.getElementById('totals-grid').innerHTML = html;
+}
+
+function renderTable(sessions){
+  document.getElementById('table-count').textContent = sessions.length + ' records';
+  if(!sessions.length){
+    document.getElementById('table-body').innerHTML = '<div class="empty">No sessions found</div>';
+    return;
+  }
+  var html = '<table><thead><tr>'+
+    '<th>Block</th><th>Type</th><th>Irr Type</th><th>Start</th><th>Finish</th><th>Hours</th><th>Status</th><th>Notes</th>'+
+    '</tr></thead><tbody>';
+  sessions.forEach(function(s){
+    var typeBadge = s.session_type==='Irrigation'?'badge-irrigation':s.session_type==='Fertilizer'?'badge-fertilizer':'badge-foggers';
+    var statusBadge = s.status==='open'?'badge-open':'badge-completed';
+    html += '<tr>'+
+      '<td>'+s.block_name+'</td>'+
+      '<td><span class="badge '+typeBadge+'">'+s.session_type+'</span></td>'+
+      '<td>'+( s.irr_type||'—')+'</td>'+
+      '<td>'+formatDate(s.start_time)+'</td>'+
+      '<td>'+formatDate(s.finish_time)+'</td>'+
+      '<td>'+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'—')+'</td>'+
+      '<td><span class="badge '+statusBadge+'">'+s.status+'</span></td>'+
+      '<td>'+(s.notes||'—')+'</td>'+
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('table-body').innerHTML = html;
+}
+
+function clearFilters(){
+  document.getElementById('f-block').value='';
+  document.getElementById('f-type').value='';
+  document.getElementById('f-irr').value='';
+  document.getElementById('f-status').value='';
+  document.getElementById('f-from').value='';
+  document.getElementById('f-to').value='';
+  search();
+}
+
+function exportCSV(){
+  if(!currentSessions.length){ alert('No records to export'); return; }
+  var headers = ['Block','Type','Irr Type','Start','Finish','Hours','Status','Notes'];
+  var rows = currentSessions.map(function(s){
+    return [s.block_name,s.session_type,s.irr_type||'',formatDate(s.start_time),formatDate(s.finish_time),s.hours?parseFloat(s.hours).toFixed(2):'',s.status,s.notes||''].join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'orchard-sessions-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+// Initial load
+search();
+</script>
+</body>
+</html>

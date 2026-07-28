@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchard Field Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+body{
+  font-family:Arial,sans-serif;
+  min-height:100vh;
+  background:#002244;
+  max-width:480px;
+  margin:0 auto;
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* DIAGONAL STRIPE BACKGROUND */
+body::before{
+  content:'';
+  position:fixed;
+  top:0;left:0;width:100%;height:100%;
+  background-image:repeating-linear-gradient(
+    45deg,
+    transparent 0px,
+    transparent 18px,
+    rgba(105,190,40,0.3) 18px,
+    rgba(105,190,40,0.3) 24px,
+    transparent 24px,
+    transparent 30px,
+    rgba(255,255,255,0.12) 30px,
+    rgba(255,255,255,0.12) 34px
+  );
+  pointer-events:none;
+  z-index:0;
+}
+
+/* HEADER */
+.header{
+  position:relative;z-index:10;
+  background:#001428;
+  padding:14px 18px 12px;
+  border-bottom:2px solid #69BE28;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.header-title h1{font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px}
+.header-title p{font-size:11px;color:#69BE28;margin-top:3px}
+.header-date .day{font-size:12px;font-weight:700;color:#69BE28;text-align:right}
+.header-date .dt{font-size:10px;color:#4a8a28;text-align:right}
+
+/* FILTERS */
+.filters{
+  position:relative;z-index:10;
+  display:flex;gap:8px;padding:10px 16px;
+  background:#001830;overflow-x:auto;
+}
+.pill{
+  flex-shrink:0;padding:5px 14px;border-radius:20px;
+  font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;
+}
+.pill.active{background:rgba(105,190,40,0.2);border-color:#69BE28;color:#69BE28}
+.pill.inactive{background:rgba(0,0,0,0.3);border-color:rgba(105,190,40,0.2);color:#4a8a28}
+
+/* CARD LIST */
+.card-list{
+  position:relative;z-index:5;
+  padding:16px 0 100px;
+}
+
+/* CARD WRAPPER */
+.card-wrap{
+  position:relative;
+  margin-bottom:22px;
+  height:90px;
+  cursor:pointer;
+  transition:transform 0.15s;
+}
+.card-wrap:active{transform:scale(0.98)}
+
+/* HEXAGON using clip-path */
+.hex{
+  position:absolute;
+  height:84px;
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* LEFT cards: x=20 to x=280 (width=260) */
+.card-left .hex-green{left:20px;width:260px;top:14px;background:#69BE28}
+.card-left .hex-navy{left:20px;width:260px;top:7px;background:#002f6c}
+.card-left .hex-grey{left:20px;width:260px;top:0px;background:#c8d4e0}
+
+/* RIGHT cards: right=20px (x=200 to x=460, clip at right edge) */
+.card-right .hex-green{right:20px;width:260px;top:14px;background:#69BE28}
+.card-right .hex-navy{right:20px;width:260px;top:7px;background:#002f6c}
+.card-right .hex-grey{right:20px;width:260px;top:0px;background:#c8d4e0}
+
+/* CARD CONTENT */
+.card-content{
+  text-align:center;
+  pointer-events:none;
+}
+.card-name{
+  font-size:14px;font-weight:900;
+  font-family:Georgia,serif;
+  color:#1a1a2e;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.card-sub{font-size:9px;color:#334;font-family:monospace;margin-top:3px}
+.sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* OVERLAY SYSTEM */
+.hex-overlay{
+  position:fixed;
+  top:0;left:50%;
+  transform:translateX(-50%);
+  width:100%;max-width:480px;
+  height:100%;
+  z-index:200;
+  display:flex;flex-direction:column;
+  padding:0;
+  overflow:hidden;
+}
+
+/* OVERLAY LAYERS */
+.ov-layer{
+  position:absolute;
+  top:0;left:0;width:100%;height:100%;
+  display:none;
+  flex-direction:column;
+  padding:24px 20px;
+}
+.ov-layer.active{display:flex}
+.ov-grey{background:#c8d4e0}
+.ov-navy{background:#002f6c}
+.ov-green{background:#1a4a1a}
+
+/* OVERLAY HEADER */
+.ov-header{
+  display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:16px;
+}
+.ov-back{
+  background:none;border:1px solid currentColor;
+  border-radius:8px;padding:6px 12px;
+  font-size:12px;font-weight:700;cursor:pointer;
+}
+.ov-grey .ov-back{color:#002244;border-color:#002244}
+.ov-navy .ov-back{color:#69BE28;border-color:#69BE28}
+.ov-green .ov-back{color:#69BE28;border-color:#69BE28}
+.ov-title{font-size:16px;font-weight:900;font-family:Georgia,serif}
+.ov-grey .ov-title{color:#002244}
+.ov-navy .ov-title,.ov-green .ov-title{color:#fff}
+.ov-close{
+  background:none;border:1px solid;
+  border-radius:8px;padding:6px 10px;
+  font-size:12px;cursor:pointer;
+}
+.ov-grey .ov-close{color:#002244;border-color:#002244}
+.ov-navy .ov-close,.ov-green .ov-close{color:#aaa;border-color:#aaa}
+
+/* INFO GRID */
+.info-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:10px;margin-bottom:16px;
+}
+.info-item .label{
+  font-size:9px;font-family:monospace;
+  text-transform:uppercase;opacity:0.6;color:#002244;
+}
+.info-item .value{
+  font-size:12px;font-weight:700;
+  color:#002244;margin-top:2px;
+}
+.more-toggle{
+  color:#336;font-size:10px;cursor:pointer;
+  padding:8px 0;border-top:1px solid rgba(0,0,0,0.1);
+  margin-bottom:8px;
+}
+.more-content{display:none}
+
+/* ACTION BUTTONS */
+.action-grid{
+  display:flex;flex-direction:column;
+  gap:14px;flex:1;justify-content:center;
+}
+.action-btn{
+  border-radius:16px;padding:28px 16px;
+  color:white;font-size:17px;font-weight:700;
+  cursor:pointer;border:2px solid;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.ov-navy .action-btn{background:rgba(255,255,255,0.1);border-color:#4466aa}.end-cycle{background:rgba(255,68,68,0.2);border-color:#ff4444;font-size:20px;}
+.ov-green .action-btn{background:rgba(255,255,255,0.1);border-color:#69BE28}
+
+/* LAYER NAV BUTTONS */
+.layer-nav{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  margin-top:auto;padding-top:12px;
+}
+.layer-nav-btn{
+  border-radius:14px;padding:16px;
+  color:white;font-size:13px;font-weight:700;
+  cursor:pointer;border:2px solid;text-align:center;
+}
+.layer-nav-btn.navy{background:#002f6c;border-color:#4466aa}
+.layer-nav-btn.green{background:#1a4a1a;border-color:#69BE28}
+
+/* ANIMATIONS */
+@keyframes hexOpen{
+  0%{clip-path:polygon(50% 40%,60% 45%,60% 55%,50% 60%,40% 55%,40% 45%);opacity:0}
+  100%{clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,0% 0%);opacity:1}
+}
+@keyframes hexClose{
+  0%{clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,0% 0%);opacity:1}
+  100%{clip-path:polygon(50% 40%,60% 45%,60% 55%,50% 60%,40% 55%,40% 45%);opacity:0}
+}
+@keyframes slideFromRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes slideFromLeft{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+
+.hex-overlay.opening{animation:hexOpen 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards}
+.hex-overlay.closing{animation:hexClose 0.25s ease-in forwards}
+.ov-layer.slide-right{animation:slideFromRight 0.25s ease forwards}
+.ov-layer.slide-left{animation:slideFromLeft 0.25s ease forwards}
+
+/* SPINNER */
+.spinner{
+  width:24px;height:24px;
+  border:2px solid rgba(105,190,40,0.2);
+  border-top-color:#69BE28;
+  border-radius:50%;
+  animation:spin 0.75s linear infinite;
+  margin:40px auto;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LEGEND */
+.legend{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;
+  background:#001428;border-top:2px solid #69BE28;
+  padding:10px 20px;
+  display:flex;gap:16px;align-items:center;
+  z-index:20;
+}
+.leg{display:flex;align-items:center;gap:5px;font-size:10px;color:#aaa}
+.leg-dot{width:6px;height:6px;border-radius:50%}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <h1>Orchard Field Manager</h1>
+    <p>McDougall Family Farming</p>
+  </div>
+  <div class="header-date">
+    <div class="day" id="hday"></div>
+    <div class="dt" id="hdate"></div>
+  </div>
+</div>
+
+<div class="filters">
+  <div class="pill active" onclick="setFilter('all',this)">All Blocks</div>
+  <div class="pill inactive" onclick="setFilter('due',this)">
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff4444;margin-right:4px;vertical-align:middle"></span>Due
+  </div>
+  <div class="pill inactive" onclick="setFilter('soon',this)">
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffcc00;margin-right:4px;vertical-align:middle"></span>Soon
+  </div>
+  <div class="pill inactive" onclick="setFilter('ok',this)">
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#69BE28;margin-right:4px;vertical-align:middle"></span>OK
+  </div>
+</div>
+
+<div class="card-list" id="card-list">
+  <div class="spinner"></div>
+</div>
+
+<!-- OVERLAY -->
+<!-- Dark backdrop -->
+<div id="ov-backdrop" onclick="closeOverlay()" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100"></div>
+
+<!-- Hexagonal card container -->
+<div id="ov-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.1);z-index:101;width:340px;transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1)">
+
+  <!-- LAYER 1: INFO (grey) -->
+  <div id="ov-info" style="display:block;position:relative"><div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:#002244;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.1);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <div style="
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background:#c8d4e0;
+      width:340px;height:340px;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      padding:60px 40px;
+      text-align:center;
+      position:relative;
+    ">
+      <div style="position:absolute;top:10px;right:10px;cursor:pointer;font-size:14px;color:#002244;font-weight:700;z-index:5" onclick="closeOverlay()">✕</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span id="ov-name" style="font-size:16px;font-weight:900;font-family:Georgia,serif;color:#1a1a2e"></span>
+        <span id="ov-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></span>
+      </div>
+      <div id="ov-info-content" style="font-size:10px;color:#334;font-family:monospace;line-height:1.8;text-align:left;width:100%"></div>
+      <div onclick="showOvLayer('ov-irrigation')" style="position:absolute;bottom:70px;font-size:28px;color:#002244;cursor:pointer;font-weight:900">▼</div>
+    </div>
+  </div>
+
+  <!-- LAYER 2: IRRIGATION (navy) -->
+  <div id="ov-irrigation" style="display:none;position:relative"><div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:white;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.4);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <div style="
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background:#002f6c;
+      width:340px;height:340px;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      padding:60px 40px;
+      text-align:center;
+      position:relative;
+    ">
+      <div onclick="showOvLayer('ov-info')" style="position:absolute;top:70px;font-size:22px;color:#69BE28;cursor:pointer">▲</div>
+      <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:20px" id="ov-name-irr"></div>
+      <div id="ov-irr-buttons" style="display:flex;flex-direction:column;gap:12px;width:160px">
+        <div onclick="logAction('Drip')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>
+        <div onclick="logAction('Sprinkler r10')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💦 Sprinkler r10</div>
+      </div>
+      <div onclick="showOvLayer('ov-fert')" style="position:absolute;bottom:70px;font-size:28px;color:#69BE28;cursor:pointer;font-weight:900">▼</div>
+    </div>
+  </div>
+
+  <!-- LAYER 3: FERT/FOG (green) -->
+  <div id="ov-fert" style="display:none;position:relative"><div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:white;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.4);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <div style="
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background:#1a4a1a;
+      width:340px;height:340px;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      padding:60px 40px;
+      text-align:center;
+      position:relative;
+    ">
+      <div onclick="showOvLayer('ov-irrigation')" style="position:absolute;top:70px;font-size:22px;color:#69BE28;cursor:pointer">▲</div>
+      <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:20px" id="ov-name-fert"></div>
+      <div style="display:flex;flex-direction:column;gap:12px;width:160px">
+        <div onclick="logAction('Fertilizer')" style="background:rgba(255,255,255,0.15);border:2px solid #69BE28;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">🌱 Fertilizer</div>
+        <div onclick="logAction('Foggers')" style="background:rgba(255,255,255,0.15);border:2px solid #69BE28;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">🌫️ Foggers</div>
+      </div>
+      
+    </div>
+  </div>
+
+</div>
+<!-- END OVERLAY -->
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#ff4444"></div>Due</div>
+  <div class="leg"><div class="leg-dot" style="background:#ffcc00"></div>Soon</div>
+  <div class="leg"><div class="leg-dot" style="background:#69BE28"></div>OK</div>
+</div>
+
+<script>
+// ── DATE ──
+var now = new Date();
+document.getElementById('hday').textContent = now.toLocaleDateString('en-US',{weekday:'short'});
+document.getElementById('hdate').textContent = now.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+// ── DATA ──
+var GET_BLOCKS = 'http://localhost:3001';
+var allBlocks = [];
+var currentFilter = 'all';
+var activeBlock = null;
+
+function formatDate(str){
+  if(!str) return '—';
+  try{
+    var d = new Date(str);
+    if(isNaN(d)) return str;
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'})+
+           ' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
+  }catch(e){return str;}
+}
+
+function getStatus(alert){
+  if((alert||'').includes('🛑')) return 'due';
+  if((alert||'').includes('🟡')) return 'soon';
+  return 'ok';
+}
+
+function getDotColor(status){
+  if(status==='due') return '#ff4444';
+  if(status==='soon') return '#ffcc00';
+  return '#69BE28';
+}
+
+function parseBlockInfo(s){
+  var parts = (s||'').split(' . ');
+  var ws = parts[2]||'';
+  var dotIdx = ws.indexOf('.');
+  return {
+    location: (parts[0]||'—').trim(),
+    irrType: (parts[1]||'—').trim(),
+    waterSource: dotIdx>=0 ? ws.substring(0,dotIdx).trim() : ws.trim(),
+    variety: dotIdx>=0 ? ws.substring(dotIdx+1).trim() : (parts[3]||'—').trim()
+  };
+}
+
+function setFilter(filter, el){
+  document.querySelectorAll('.pill').forEach(function(p){
+    p.classList.remove('active');p.classList.add('inactive');
+  });
+  el.classList.add('active');el.classList.remove('inactive');
+  if(filter==='all') renderCards(allBlocks);
+  else renderCards(allBlocks.filter(function(b){return getStatus(b.alert)===filter;}));
+}
+
+async function loadBlocks(){
+  document.getElementById('card-list').innerHTML = '<div class="spinner"></div>';
+  try{
+    var res = await fetch(GET_BLOCKS+'/api/blocks');
+    var data = await res.json();
+    var lines = data.blocks;
+    allBlocks = lines.map(function(block){
+      var p = [
+        String(block.name||''),
+        String(block.water_alert||''),
+        String(block.last_watered||''),
+        String(block.next_water||''),
+        String(block.cycle_days||'6'),
+        String(block.instructions||''),
+        block.total_hours,
+        String(block.location||'')+' . '+String(block.irr_type||'')+' . '+String(block.water_source||'')+'.'+String(block.variety||''),
+        String(block.open_session_id||'')
+      ];
+      var info = parseBlockInfo((p[7]||'').trim());
+      return {
+        name:(p[0]||'').trim(),
+        alert:(p[1]||'').trim(),
+        lastWatered:formatDate((p[2]||'').trim()),
+        rawLastWatered:(p[2]||'').trim(),
+        nextWater:formatDate((p[3]||'').trim()),
+        cycleDays:(p[4]||'').trim(),
+        instructions:(p[5]||'').trim(),
+        totalHours:parseFloat(p[6])||0,
+        blockInfo:(p[7]||'').trim(),
+        openRecordId:(p[8]||'').trim(),
+        location:info.location,
+        irrTypeMain:info.irrType,
+        waterSource:info.waterSource,
+        variety:info.variety
+      };
+    });
+    // Sort: Due → Soon → OK
+    allBlocks.sort(function(a,b){
+      var sa=a.alert.includes('🛑')?0:a.alert.includes('🟡')?1:2;
+      var sb=b.alert.includes('🛑')?0:b.alert.includes('🟡')?1:2;
+      return sa-sb;
+    });
+    renderCards(allBlocks);
+  }catch(e){
+    document.getElementById('card-list').innerHTML='<div style="color:#ff4444;text-align:center;padding:40px">Error loading blocks</div>';
+  }
+}
+
+// ── RENDER CARDS ──
+function renderCards(blocks){
+  var list = document.getElementById('card-list');
+  if(!blocks.length){
+    list.innerHTML='<div style="color:#4a8a28;text-align:center;padding:40px">No blocks found</div>';
+    return;
+  }
+  list.innerHTML = blocks.map(function(b,i){
+    var status = getStatus(b.alert);
+    var dot = getDotColor(status);
+    var side = i%2===0 ? 'card-left' : 'card-right';
+    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'
+      +'<div class="hex hex-green"></div>'
+      +'<div class="hex hex-navy"></div>'
+      +'<div class="hex hex-grey">'
+      +'<div class="card-content">'
+      +'<div class="card-name">'+b.name+'<span class="sdot" style="background:'+dot+'"></span></div>'
+      +'<div class="card-sub">Last: '+b.lastWatered+'</div>'
+      +'<div class="card-sub">Next: '+b.nextWater+'</div>'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// ── OVERLAY ──
+function openBlock(idx){
+  activeBlock = allBlocks[idx];
+  var b = activeBlock;
+  var dot = getDotColor(getStatus(b.alert));
+  var hasSession = b.openRecordId && b.openRecordId.length > 0;
+
+  document.getElementById('ov-name').textContent = b.name;
+  document.getElementById('ov-name-irr').textContent = b.name;
+  document.getElementById('ov-name-fert').textContent = b.name;
+  document.getElementById('ov-dot').style.background = dot;
+
+  document.getElementById('ov-info-content').innerHTML =
+    'Last Watered: '+b.lastWatered+'<br>'
+    +'Next Water: '+b.nextWater+'<br>'
+    +'Type: '+b.irrTypeMain+'<br>'
+    +'Location: '+b.location+'<br>'
+    +'Water Source: '+b.waterSource+'<br>'
+    +'Variety: '+b.variety+'<br>'
+    +'Total Hours: '+b.totalHours+'h<br>'
+    +'Cycle: '+b.cycleDays+' days'
+    +(b.instructions?'<br>Notes: '+b.instructions:'');
+
+  if(hasSession){
+    document.getElementById('ov-irr-buttons').innerHTML =
+      '<div onclick="logAction(\'End Cycle\')" style="background:rgba(255,68,68,0.2);border:2px solid #ff4444;border-radius:12px;padding:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;text-align:center;width:160px">⏹ End Cycle</div>';
+  } else {
+    document.getElementById('ov-irr-buttons').innerHTML =
+      '<div onclick="logAction(\'Drip\')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>'
+      +'<div onclick="logAction(\'Sprinkler r10\')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💦 Sprinkler r10</div>';
+  }
+
+  showOvLayer('ov-irrigation');
+  var backdrop = document.getElementById('ov-backdrop');
+  var container = document.getElementById('ov-container');
+  backdrop.style.display = 'block';
+  container.style.display = 'block';
+  setTimeout(function(){
+    container.style.transform = 'translate(-50%,-50%) scale(1)';
+  },10);
+}
+
+function showOvLayer(layerId){
+  document.querySelectorAll('#ov-info,#ov-irrigation,#ov-fert').forEach(function(l){
+    l.style.display='none';
+  });
+  var layer = document.getElementById(layerId);
+  if(layer) layer.style.display='block';
+}
+
+function closeOverlay(){
+  var container = document.getElementById('ov-container');
+  var backdrop = document.getElementById('ov-backdrop');
+  container.style.transform = 'translate(-50%,-50%) scale(0.1)';
+  setTimeout(function(){
+    container.style.display='none';
+    backdrop.style.display='none';
+    showOvLayer('ov-info');
+  },350);
+}
+
+function logAction(type){
+  alert('Log '+type+' for '+(activeBlock?activeBlock.name:''));
+}
+
+loadBlocks();
+
+</script>
+</body>
+</html>
