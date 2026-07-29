@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static(require('path').join(__dirname, 'public')));
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
+console.log('ENV CHECK:', process.env.OPENWEATHER_API_KEY ? 'KEY FOUND' : 'KEY MISSING');
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orchard_blocks (
