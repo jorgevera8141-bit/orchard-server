@@ -197,9 +197,12 @@ app.get('/api/fuel', async (req, res) => {
 app.get('/api/weather', async (req, res) => {
   try {
     const apiKey = process.env.OPENWEATHER_API_KEY;
+    if(!apiKey) return res.status(500).json({ success: false, message: 'No API key' });
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=47.499334&lon=-120.4423954&appid=${apiKey}&units=imperial`;
     const response = await fetch(url);
     const data = await response.json();
+    console.log('Weather API response:', JSON.stringify(data).substring(0, 200));
+    if(!data.main) return res.status(500).json({ success: false, message: 'Bad API response', data });
     res.json({
       success: true,
       temp: Math.round(data.main.temp),
