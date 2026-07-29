@@ -234,6 +234,10 @@ body::before{
   animation:spin 0.75s linear infinite;
   margin:40px auto;
 }
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.4;transform:scale(0.8)}
+}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* LEGEND */
@@ -359,7 +363,11 @@ body::before{
 
 </div>
 <!-- END OVERLAY -->
- <div style="position:fixed;bottom:52px;right:16px;z-index:30">
+ <div style="position:fixed;bottom:52px;right:16px;z-index:30;display:flex;flex-direction:column;gap:10px;align-items:center">
+  <div onclick="showActiveSessions()" style="background:#002244;border:2px solid #ffcc00;color:#ffcc00;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);position:relative">
+    <span style="font-size:9px;font-weight:700;font-family:monospace;letter-spacing:1px">LIVE</span>
+    <span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:#ffcc00;animation:pulse 1.5s infinite"></span>
+  </div>
   <div onclick="showFuelLog()" style="background:#69BE28;color:#002244;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)">⛽</div>
 </div>
 <div class="legend">
