@@ -193,6 +193,25 @@ app.get('/api/fuel', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── WEATHER ──
+app.get('/api/weather', async (req, res) => {
+  try {
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=47.499334&lon=-120.4423954&appid=${apiKey}&units=imperial`;
+    const response = await fetch(url);
+    const data = await response.json();
+    res.json({
+      success: true,
+      temp: Math.round(data.main.temp),
+      feels_like: Math.round(data.main.feels_like),
+      humidity: data.main.humidity,
+      description: data.weather[0].description,
+      wind: Math.round(data.wind.speed)
+    });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
