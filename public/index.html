@@ -261,6 +261,10 @@ body::before{
     <p>McDougall Family Farming</p>
   <a href="/admin.html" style="color:#69BE28;font-size:11px;border:1px solid rgba(105,190,40,0.3);border-radius:6px;padding:5px 10px;text-decoration:none">Admin</a>
 </div>
+<div id="weather-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#001428;border:1px solid rgba(105,190,40,0.3);margin-right:8px">
+  <span id="weather-temp" style="font-size:13px;font-weight:700;color:#69BE28">--°</span>
+  <span id="weather-desc" style="font-size:8px;color:#4a8a28;font-family:monospace"></span>
+</div>
   <div class="header-date">
     <div class="day" id="hday"></div>
     <div class="dt" id="hdate"></div>
@@ -465,6 +469,20 @@ function showActiveSessions(){
       }).join('');
     });
 }
+function loadWeather(){
+  fetch('/api/weather')
+    .then(r=>r.json())
+    .then(function(data){
+      if(data.success){
+        document.getElementById('weather-temp').textContent = data.temp+'°';
+        document.getElementById('weather-desc').textContent = data.humidity+'%';
+        document.getElementById('weather-badge').title = data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      }
+    });
+}
+
+loadWeather();
+setInterval(loadWeather, 900000); // refresh every 15 min
 async function loadBlocks(){
   document.getElementById('card-list').innerHTML = '<div class="spinner"></div>';
   try{
