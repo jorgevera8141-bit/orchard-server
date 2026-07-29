@@ -275,6 +275,10 @@ body::before{
   </div>
 </div>
 <div class="pill inactive" onclick="showActiveSessions()" style="background:rgba(255,204,0,0.15);border-color:#ffcc00;color:#ffcc00">🟡 Active Now</div>
+<div style="display:flex;gap:8px;padding:8px 16px;background:#001830">
+  <input id="search-input" placeholder="Search block..." style="flex:1;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:10px;padding:8px 12px;color:white;font-size:12px;outline:none" oninput="filterBlocks(this.value)">
+  <div onclick="showHistory()" style="background:#001428;border:1px solid rgba(105,190,40,0.2);border-radius:10px;padding:8px 14px;font-size:12px;color:#69BE28;cursor:pointer">History</div>
+</div>
 <div class="card-list" id="card-list">
   <div class="spinner"></div>
 </div>
@@ -573,7 +577,29 @@ function closeOverlay(){
 function logAction(type){
   alert('Log '+type+' for '+(activeBlock?activeBlock.name:''));
 }
-
+function showHistory(){
+  var list = document.getElementById('card-list');
+  list.innerHTML = '<div class="spinner"></div>';
+  fetch('/api/admin/sessions?status=completed')
+    .then(r=>r.json())
+    .then(function(data){
+      var sessions = data.sessions;
+      if(!sessions.length){
+        list.innerHTML = '<div style="color:#4a8a28;text-align:center;padding:40px">No records yet</div>';
+        return;
+      }
+      list.innerHTML = '<div style="padding:8px 16px"><div onclick="loadBlocks()" style="color:#69BE28;font-size:12px;cursor:pointer">← Back to blocks</div></div>'+
+        sessions.slice(0,50).map(function(s){
+          return '<div style="background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.15);border-radius:10px;margin:6px 16px;padding:12px">'
+            +'<div style="display:flex;justify-content:space-between">'
+            +'<span style="color:white;font-size:13px;font-weight:700">'+s.block_name+'</span>'
+            +'<span style="color:#69BE28;font-size:10px;font-family:monospace">'+s.session_type+'</span>'
+            +'</div>'
+            +'<div style="color:#aaa;font-size:10px;margin-top:4px">'+formatDate(s.start_time)+' · '+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'open')+'</div>'
+            +'</div>';
+        }).join('');
+    });
+}
 loadBlocks();
 
 </script>
