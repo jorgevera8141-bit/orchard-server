@@ -274,7 +274,7 @@ body::before{
     <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#69BE28;margin-right:4px;vertical-align:middle"></span>OK
   </div>
 </div>
-
+<div class="pill inactive" onclick="showActiveSessions()" style="background:rgba(255,204,0,0.15);border-color:#ffcc00;color:#ffcc00">🟡 Active Now</div>
 <div class="card-list" id="card-list">
   <div class="spinner"></div>
 </div>
@@ -414,7 +414,28 @@ function setFilter(filter, el){
   if(filter==='all') renderCards(allBlocks);
   else renderCards(allBlocks.filter(function(b){return getStatus(b.alert)===filter;}));
 }
-
+function showActiveSessions(){
+  fetch('/api/admin/sessions?status=open')
+    .then(r=>r.json())
+    .then(function(data){
+      var sessions = data.sessions;
+      var list = document.getElementById('card-list');
+      if(!sessions.length){
+        list.innerHTML = '<div style="color:#ffcc00;text-align:center;padding:40px;font-size:14px">No active sessions right now</div>';
+        return;
+      }
+      list.innerHTML = sessions.map(function(s){
+        return '<div style="background:rgba(0,20,40,0.85);border:1px solid #ffcc00;border-radius:12px;margin:8px 16px;padding:16px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
+          +'<span style="color:white;font-size:15px;font-weight:700;font-family:Georgia,serif">'+s.block_name+'</span>'
+          +'<span style="color:#ffcc00;font-size:11px;font-family:monospace">🟡 ACTIVE</span>'
+          +'</div>'
+          +'<div style="color:#69BE28;font-size:11px;font-family:monospace;margin-top:6px">'+s.irr_type+'</div>'
+          +'<div style="color:#aaa;font-size:10px;margin-top:4px">Started: '+formatDate(s.start_time)+'</div>'
+          +'</div>';
+      }).join('');
+    });
+}
 async function loadBlocks(){
   document.getElementById('card-list').innerHTML = '<div class="spinner"></div>';
   try{
