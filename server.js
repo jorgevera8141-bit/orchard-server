@@ -214,6 +214,67 @@ app.get('/api/weather', async (req, res) => {
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
+});// ── SHIFTS ──
+app.post('/api/shifts/clockin', async (req, res) => {
+  try {
+    const { operator, activity, block_name, notes } = req.body;
+    // Close any active shift first
+    await pool.query(
+      "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active'",
+      [operator || 'Jorge']
+    );
+    const shift = await pool.query(
+      'INSERT INTO orchard_shifts (operator, activity, block_name, notes) VALUES ($1,$2,$3,$4) RETURNING id',
+      [operator || 'Jorge', activity || 'General', block_name || '', notes || '']
+    );
+    res.json({ success: true, shift_id: shift.rows[0].id });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/shifts/clockout', async (req, res) => {
+  try {
+    const { operator } = req.body;
+    const result = await pool.query(
+      "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active' RETURNING total_hours",
+      [operator || 'Jorge']
+    );
+    if(!result.rows.length) return res.status(404).json({ success: false, message: 'No active shift found' });
+    res.json({ success: true, hours: parseFloat(result.rows[0].total_hours).toFixed(2) });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/shifts/switch', async (req, res) => {
+  try {
+    const { operator, activity, block_name } = req.body;
+    // Close current shift
+    await pool.query(
+      "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active'",
+      [operator || 'Jorge']
+    );
+    // Start new shift with new activity
+    const shift = await pool.query(
+      'INSERT INTO orchard_shifts (operator, activity, block_name) VALUES ($1,$2,$3) RETURNING id',
+      [operator || 'Jorge', activity || 'General', block_name || '']
+    );
+    res.json({ success: true, shift_id: shift.rows[0].id });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.get('/api/shifts/active', async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orchard_shifts WHERE status='active' ORDER BY clock_in DESC"
+    );
+    res.json({ success: true, shifts: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
