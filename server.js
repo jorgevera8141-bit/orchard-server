@@ -171,6 +171,28 @@ app.get('/api/admin/blocks', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── FUEL LOG ──
+app.post('/api/fuel', async (req, res) => {
+  try {
+    const { log_date, vehicle, fuel_type, gallons, operator, notes } = req.body;
+    await pool.query(
+      'INSERT INTO orchard_fuel (log_date, vehicle, fuel_type, gallons, operator, notes) VALUES ($1,$2,$3,$4,$5,$6)',
+      [log_date || new Date().toISOString().split('T')[0], vehicle || 'Truck', fuel_type || 'Diesel', gallons, operator || 'Jorge', notes || '']
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.get('/api/fuel', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM orchard_fuel ORDER BY log_date DESC, created_at DESC LIMIT 100');
+    res.json({ success: true, logs: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
