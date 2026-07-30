@@ -426,9 +426,10 @@ function exportCSV(){
 // Initial load
 function toggleSection(section){
   var shifts = document.getElementById('shifts-section');
-  var sessions = document.querySelectorAll('.filters-card, .totals-grid, .table-card');
+  var workers = document.getElementById('workers-section');
   if(section === 'shifts'){
     shifts.style.display = shifts.style.display === 'none' ? 'block' : 'none';
+    workers.style.display = 'none';
     loadWeeklySummary();
   } else if(section === 'workers'){
     workers.style.display = workers.style.display === 'none' ? 'block' : 'none';
