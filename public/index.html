@@ -741,10 +741,17 @@ function clockIn(){
     + '<select id="sh-activity" onchange="toggleCustomActivity()" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Irrigation</option><option>Pruning</option><option>Thinning</option><option>Picking</option><option>General</option><option value="other">Other (type below)</option></select>'
     + '<input id="sh-activity-custom" type="text" placeholder="Type activity..." style="display:none;width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none;margin-top:6px"></div>'
     + '<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block</div>'
-    + '<select id="sh-block" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option value="">-- Select Block --</option><option>Block 5</option><option>Block 6</option><option>Block 8</option><option>Block 9A</option><option>Block 9B</option><option>Block 9C</option><option>Block 10 Cherry</option><option>Block 10 Envy</option><option>Block 10 HC</option><option>Block 11</option><option>Block 12A</option><option>Block 12B</option><option>Block 12C</option><option>Block 12D</option><option>Block 20 Barts</option><option>Block 20 HC</option><option>Block 20 Young Barts</option><option>Block 20 Young Barts 2</option><option>Block 21</option><option>Block 22</option></select></div>'
+    + '<select id="sh-block" onchange="toggleCustomBlock()" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option value="">-- Select Block --</option><option>Block 5</option><option>Block 6</option><option>Block 8</option><option>Block 9A</option><option>Block 9B</option><option>Block 9C</option><option>Block 10 Cherry</option><option>Block 10 Envy</option><option>Block 10 HC</option><option>Block 11</option><option>Block 12A</option><option>Block 12B</option><option>Block 12C</option><option>Block 12D</option><option>Block 20 Barts</option><option>Block 20 HC</option><option>Block 20 Young Barts</option><option>Block 20 Young Barts 2</option><option>Block 21</option><option>Block 22</option><option value="other">Other (type below)</option></select>'
+    + '<input id="sh-block-custom" type="text" placeholder="Type block name..." style="display:none;width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none;margin-top:6px"></div>'
     + '<button onclick="submitClockIn()" style="background:#69BE28;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Clock In</button>'
     + '</div></div>';
   document.body.appendChild(modal);
+}
+
+function toggleCustomBlock(){
+  var sel = document.getElementById('sh-block');
+  var custom = document.getElementById('sh-block-custom');
+  if(custom) custom.style.display = sel.value === 'other' ? 'block' : 'none';
 }
 
 function toggleCustomActivity(){
@@ -757,7 +764,9 @@ function submitClockIn(){
   var actSel = document.getElementById('sh-activity').value;
   var actCustom = document.getElementById('sh-activity-custom').value;
   var activity = actSel === 'other' ? actCustom : actSel;
-  var block = document.getElementById('sh-block').value;
+  var blkSel = document.getElementById('sh-block').value;
+  var blkCustom = document.getElementById('sh-block-custom') ? document.getElementById('sh-block-custom').value : '';
+  var block = blkSel === 'other' ? blkCustom : blkSel;
   fetch('/api/shifts/clockin', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
