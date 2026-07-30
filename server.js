@@ -276,6 +276,81 @@ app.get('/api/shifts/active', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── WEEKLY HOURS ──
+app.get('/api/shifts/weekly', async (req, res) => {
+  try {
+    // Get start of current week (Saturday to Friday — orchard week)
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 6=Sat
+    const daysToSat = day === 6 ? 0 : day + 1;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - daysToSat);
+    weekStart.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23,59,59,999);
+
+    const result = await pool.query(
+      `SELECT s.*, b.location 
+       FROM orchard_shifts s
+       LEFT JOIN orchard_blocks b ON b.name = s.block_name
+       WHERE s.clock_in >= $1 AND s.clock_in <= $2
+       ORDER BY s.clock_in ASC`,
+      [weekStart.toISOString(), weekEnd.toISOString()]
+    );
+
+    // Calculate total hours
+    var totalHours = 0;
+    result.rows.forEach(function(s){
+      if(s.total_hours) totalHours += parseFloat(s.total_hours);
+    });
+
+    // Calculate breaks based on first clock in of the day
+    var byDay = {};
+    result.rows.forEach(function(s){
+      var d = new Date(s.clock_in).toLocaleDateString('en-US',{timeZone:'America/Los_Angeles'});
+      if(!byDay[d]) byDay[d] = [];
+      byDay[d].push(s);
+    });
+
+    var weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var entries = Object.keys(byDay).map(function(date){
+      var dayShifts = byDay[date];
+      var firstIn = new Date(dayShifts[0].clock_in);
+      var lastOut = dayShifts[dayShifts.length-1].clock_out ? new Date(dayShifts[dayShifts.length-1].clock_out) : null;
+      var dayHours = dayShifts.reduce(function(sum,s){ return sum + (parseFloat(s.total_hours)||0); }, 0);
+      var totalMinutes = dayHours * 60;
+      
+      // Break rules from first clock in
+      var breaks = [];
+      if(totalMinutes > 180) breaks.push({time:'After 3h', duration:'10 min break'});
+      if(totalMinutes > 300) breaks.push({time:'After 5h', duration:'30 min lunch'});
+      if(totalMinutes > 420) breaks.push({time:'After 7h', duration:'10 min break'});
+
+      return {
+        date: date,
+        weekday: weekdays[new Date(date).getDay()],
+        first_in: firstIn.toISOString(),
+        last_out: lastOut ? lastOut.toISOString() : null,
+        day_hours: parseFloat(dayHours.toFixed(2)),
+        breaks: breaks,
+        shifts: dayShifts
+      };
+    });
+
+    res.json({
+      success: true,
+      week_start: weekStart.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'}),
+      week_end: weekEnd.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'}),
+      total_hours: parseFloat(totalHours.toFixed(2)),
+      limit: 39,
+      remaining: parseFloat((39 - totalHours).toFixed(2)),
+      entries: entries
+    });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
