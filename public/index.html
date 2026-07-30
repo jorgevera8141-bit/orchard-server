@@ -396,6 +396,21 @@ body::before{
 </div>
 
 <script>
+// Check login
+var currentWorker = null;
+try {
+  var savedWorker = localStorage.getItem('orchard_worker');
+  if(!savedWorker){ window.location.href = '/login.html'; }
+  else { currentWorker = JSON.parse(savedWorker); currentOperator = currentWorker.name; }
+} catch(e){ window.location.href = '/login.html'; }
+
+// Show worker name in header
+if(currentWorker){
+  var el = document.getElementById('worker-name');
+  if(el) el.textContent = currentWorker.name + ' · ' + currentWorker.role;
+}
+
+
 // ── DATE ──
 var now = new Date();
 document.getElementById('hday').textContent = now.toLocaleDateString('en-US',{weekday:'short'});
