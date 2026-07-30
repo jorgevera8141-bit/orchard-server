@@ -359,6 +359,25 @@ app.get('/api/shifts/weekly', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── ADMIN SHIFTS ──
+app.get('/api/admin/shifts', async (req, res) => {
+  try {
+    const { operator, activity, status, from, to } = req.query;
+    let query = 'SELECT s.*, b.location FROM orchard_shifts s LEFT JOIN orchard_blocks b ON b.name = s.block_name WHERE 1=1';
+    let params = [];
+    let i = 1;
+    if(operator){ query += ` AND s.operator ILIKE $${i++}`; params.push('%'+operator+'%'); }
+    if(activity){ query += ` AND s.activity=$${i++}`; params.push(activity); }
+    if(status){ query += ` AND s.status=$${i++}`; params.push(status); }
+    if(from){ query += ` AND s.clock_in>=$${i++}`; params.push(from); }
+    if(to){ query += ` AND s.clock_in<=$${i++}`; params.push(to); }
+    query += ' ORDER BY s.clock_in DESC LIMIT 500';
+    const result = await pool.query(query, params);
+    res.json({ success: true, shifts: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));

@@ -78,6 +78,7 @@
     </div>
     <div class="header-links">
       <a href="/" class="header-link">← Field App</a>
+<a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
     </div>
   </div>
 
@@ -147,6 +148,62 @@
     <div id="table-body"><div class="spinner"></div></div>
   </div>
 
+<!-- SHIFTS SECTION -->
+<div id="shifts-section" style="display:none">
+  <div class="filters-card" style="margin-top:20px">
+    <div class="filters-title">Shift Records</div>
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label>Operator</label>
+        <input type="text" id="sf-operator" placeholder="All operators" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+      </div>
+      <div class="filter-group">
+        <label>Activity</label>
+        <select id="sf-activity" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+          <option value="">All Activities</option>
+          <option>Irrigation</option>
+          <option>Pruning</option>
+          <option>Thinning</option>
+          <option>Picking</option>
+          <option>General</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select id="sf-status" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" id="sf-from" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+      </div>
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" id="sf-to" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-search" onclick="searchShifts()">Search</button>
+      <button class="btn-clear" onclick="clearShiftFilters()">Clear</button>
+      <button class="btn-export" onclick="exportShiftsCSV()">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- WEEKLY SUMMARY -->
+  <div id="weekly-summary" style="margin-bottom:20px"></div>
+
+  <!-- SHIFTS TABLE -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Shift Records</div>
+      <div class="table-count" id="shifts-count">—</div>
+    </div>
+    <div id="shifts-body"><div class="empty">Search to load shifts</div></div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -282,6 +339,100 @@ function exportCSV(){
 }
 
 // Initial load
+function toggleSection(section){
+  var shifts = document.getElementById('shifts-section');
+  var sessions = document.querySelectorAll('.filters-card, .totals-grid, .table-card');
+  if(section === 'shifts'){
+    shifts.style.display = shifts.style.display === 'none' ? 'block' : 'none';
+    loadWeeklySummary();
+  }
+}
+
+function loadWeeklySummary(){
+  fetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){
+    if(!data.success) return;
+    var pct = Math.min(100,(data.total_hours/39)*100).toFixed(0);
+    document.getElementById('weekly-summary').innerHTML =
+      '<div style="background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.2);border-radius:12px;padding:20px;margin-bottom:0">'
+      +'<div style="color:#69BE28;font-size:11px;font-family:monospace;text-transform:uppercase;margin-bottom:12px">Week: '+data.week_start+' — '+data.week_end+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">'
+      +'<div class="total-card"><div class="total-num">'+data.total_hours+'</div><div class="total-label">Hours Used</div></div>'
+      +'<div class="total-card"><div class="total-num" style="color:#ffcc00">39</div><div class="total-label">Limit</div></div>'
+      +'<div class="total-card"><div class="total-num" style="color:'+(data.remaining<5?'#ff4444':'#c8d4e0')+'">'+data.remaining+'</div><div class="total-label">Remaining</div></div>'
+      +'</div>'
+      +'<div style="background:#002244;border-radius:8px;height:8px"><div style="background:#69BE28;height:8px;border-radius:8px;width:'+pct+'%"></div></div>'
+      +'</div>';
+  });
+}
+
+function searchShifts(){
+  var params = new URLSearchParams();
+  var operator = document.getElementById('sf-operator').value;
+  var activity = document.getElementById('sf-activity').value;
+  var status = document.getElementById('sf-status').value;
+  var from = document.getElementById('sf-from').value;
+  var to = document.getElementById('sf-to').value;
+  if(operator) params.append('operator', operator);
+  if(activity) params.append('activity', activity);
+  if(status) params.append('status', status);
+  if(from) params.append('from', from);
+  if(to) params.append('to', to);
+
+  document.getElementById('shifts-body').innerHTML = '<div class="spinner"></div>';
+  fetch('/api/admin/shifts?'+params.toString()).then(r=>r.json()).then(function(data){
+    currentShifts = data.shifts || [];
+    renderShiftsTable(currentShifts);
+  });
+}
+
+function renderShiftsTable(shifts){
+  document.getElementById('shifts-count').textContent = shifts.length+' records';
+  if(!shifts.length){
+    document.getElementById('shifts-body').innerHTML = '<div class="empty">No shifts found</div>';
+    return;
+  }
+  var html = '<table><thead><tr>'
+    +'<th>Operator</th><th>Activity</th><th>Block</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Status</th>'
+    +'</tr></thead><tbody>';
+  shifts.forEach(function(s){
+    var badge = s.status==='active'?'badge-open':'badge-completed';
+    html += '<tr>'
+      +'<td>'+s.operator+'</td>'
+      +'<td>'+s.activity+'</td>'
+      +'<td>'+(s.block_name||'—')+'</td>'
+      +'<td>'+formatDate(s.clock_in)+'</td>'
+      +'<td>'+formatDate(s.clock_out)+'</td>'
+      +'<td>'+(s.total_hours?parseFloat(s.total_hours).toFixed(2)+'h':'—')+'</td>'
+      +'<td><span class="badge '+badge+'">'+s.status+'</span></td>'
+      +'</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('shifts-body').innerHTML = html;
+}
+
+function clearShiftFilters(){
+  document.getElementById('sf-operator').value='';
+  document.getElementById('sf-activity').value='';
+  document.getElementById('sf-status').value='';
+  document.getElementById('sf-from').value='';
+  document.getElementById('sf-to').value='';
+  searchShifts();
+}
+
+var currentShifts = [];
+function exportShiftsCSV(){
+  if(!currentShifts.length){alert('No records to export');return;}
+  var headers = ['Operator','Activity','Block','Clock In','Clock Out','Hours','Status'];
+  var rows = currentShifts.map(function(s){
+    return [s.operator,s.activity,s.block_name||'',formatDate(s.clock_in),formatDate(s.clock_out),s.total_hours?parseFloat(s.total_hours).toFixed(2):'',s.status].join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv],{type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'orchard-shifts-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
 search();
 </script>
 </body>
