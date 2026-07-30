@@ -802,21 +802,39 @@ function switchActivity(){
   modal.innerHTML = '<div style="background:#001428;border:1px solid #aaa;border-radius:16px;padding:24px;width:90%">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
     + '<span style="color:white;font-size:16px;font-weight:700">Switch Activity</span>'
-    + '<span onclick="document.getElementById("shift-modal").remove()" style="color:#aaa;font-size:20px;cursor:pointer">X</span>'
+    + '<button onclick="document.getElementById(\'shift-modal\').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>'
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:12px">'
     + '<div><div style="color:#aaa;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">New Activity</div>'
-    + '<select id="sw-activity" style="width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Irrigation</option><option>Pruning</option><option>Thinning</option><option>Picking</option><option>General</option></select></div>'
-    + '<div><div style="color:#aaa;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block (optional)</div>'
-    + '<input id="sw-block" type="text" placeholder="e.g. Block 8" style="width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    + '<select id="sw-activity" onchange="toggleCustomSwitch()" style="width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Irrigation</option><option>Pruning</option><option>Thinning</option><option>Picking</option><option>General</option><option value="other">Other (type below)</option></select>'
+    + '<input id="sw-activity-custom" type="text" placeholder="Type activity..." style="display:none;width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none;margin-top:6px"></div>'
+    + '<div><div style="color:#aaa;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block</div>'
+    + '<select id="sw-block" onchange="toggleCustomSwitchBlock()" style="width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option value="">-- Select Block --</option><option>Block 5</option><option>Block 6</option><option>Block 8</option><option>Block 9A</option><option>Block 9B</option><option>Block 9C</option><option>Block 10 Cherry</option><option>Block 10 Envy</option><option>Block 10 HC</option><option>Block 11</option><option>Block 12A</option><option>Block 12B</option><option>Block 12C</option><option>Block 12D</option><option>Block 20 Barts</option><option>Block 20 HC</option><option>Block 20 Young Barts</option><option>Block 20 Young Barts 2</option><option>Block 21</option><option>Block 22</option><option value="other">Other (type below)</option></select>'
+    + '<input id="sw-block-custom" type="text" placeholder="Type block name..." style="display:none;width:100%;background:#002244;border:1px solid rgba(150,150,150,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none;margin-top:6px"></div>'
     + '<button onclick="submitSwitch()" style="background:#aaa;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Switch</button>'
     + '</div></div>';
   document.body.appendChild(modal);
 }
 
+function toggleCustomSwitch(){
+  var sel = document.getElementById('sw-activity');
+  var custom = document.getElementById('sw-activity-custom');
+  if(custom) custom.style.display = sel.value === 'other' ? 'block' : 'none';
+}
+
+function toggleCustomSwitchBlock(){
+  var sel = document.getElementById('sw-block');
+  var custom = document.getElementById('sw-block-custom');
+  if(custom) custom.style.display = sel.value === 'other' ? 'block' : 'none';
+}
+
 function submitSwitch(){
-  var activity = document.getElementById('sw-activity').value;
-  var block = document.getElementById('sw-block').value;
+  var actSel = document.getElementById('sw-activity').value;
+  var actCustom = document.getElementById('sw-activity-custom') ? document.getElementById('sw-activity-custom').value : '';
+  var activity = actSel === 'other' ? actCustom : actSel;
+  var blkSel = document.getElementById('sw-block').value;
+  var blkCustom = document.getElementById('sw-block-custom') ? document.getElementById('sw-block-custom').value : '';
+  var block = blkSel === 'other' ? blkCustom : blkSel;
   fetch('/api/shifts/switch', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
