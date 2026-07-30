@@ -734,29 +734,34 @@ function clockIn(){
   modal.innerHTML = '<div style="background:#001428;border:1px solid #69BE28;border-radius:16px;padding:24px;width:90%">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
     + '<span style="color:white;font-size:16px;font-weight:700">Clock In</span>'
-    + '<span onclick="document.getElementById("shift-modal").remove()" style="color:#aaa;font-size:20px;cursor:pointer">X</span>'
+    + '<button onclick="document.getElementById(\'shift-modal\').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>'
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:12px">'
-    + '<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Operator</div>'
-    + '<select id="sh-operator" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Jorge</option><option>Other</option></select></div>'
     + '<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Activity</div>'
-    + '<select id="sh-activity" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Irrigation</option><option>Pruning</option><option>Thinning</option><option>Picking</option><option>General</option></select></div>'
-    + '<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block (optional)</div>'
-    + '<input id="sh-block" type="text" placeholder="e.g. Block 8" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    + '<select id="sh-activity" onchange="toggleCustomActivity()" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option>Irrigation</option><option>Pruning</option><option>Thinning</option><option>Picking</option><option>General</option><option value="other">Other (type below)</option></select>'
+    + '<input id="sh-activity-custom" type="text" placeholder="Type activity..." style="display:none;width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none;margin-top:6px"></div>'
+    + '<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block</div>'
+    + '<select id="sh-block" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"><option value="">-- Select Block --</option><option>Block 5</option><option>Block 6</option><option>Block 8</option><option>Block 9A</option><option>Block 9B</option><option>Block 9C</option><option>Block 10 Cherry</option><option>Block 10 Envy</option><option>Block 10 HC</option><option>Block 11</option><option>Block 12A</option><option>Block 12B</option><option>Block 12C</option><option>Block 12D</option><option>Block 20 Barts</option><option>Block 20 HC</option><option>Block 20 Young Barts</option><option>Block 20 Young Barts 2</option><option>Block 21</option><option>Block 22</option></select></div>'
     + '<button onclick="submitClockIn()" style="background:#69BE28;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Clock In</button>'
     + '</div></div>';
   document.body.appendChild(modal);
 }
 
+function toggleCustomActivity(){
+  var sel = document.getElementById('sh-activity');
+  var custom = document.getElementById('sh-activity-custom');
+  if(custom) custom.style.display = sel.value === 'other' ? 'block' : 'none';
+}
+
 function submitClockIn(){
-  var operator = document.getElementById('sh-operator').value;
-  var activity = document.getElementById('sh-activity').value;
+  var actSel = document.getElementById('sh-activity').value;
+  var actCustom = document.getElementById('sh-activity-custom').value;
+  var activity = actSel === 'other' ? actCustom : actSel;
   var block = document.getElementById('sh-block').value;
-  currentOperator = operator;
   fetch('/api/shifts/clockin', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({operator:operator, activity:activity, block_name:block})
+    body:JSON.stringify({operator:currentOperator, activity:activity, block_name:block})
   }).then(r=>r.json()).then(function(data){
     if(data.success){
       document.getElementById("shift-modal").remove();
