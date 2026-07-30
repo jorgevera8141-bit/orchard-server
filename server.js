@@ -378,6 +378,65 @@ app.get('/api/admin/shifts', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── WORKERS ──
+app.get('/api/workers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, role, greeting, active, created_at FROM orchard_workers ORDER BY name');
+    res.json({ success: true, workers: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/workers/login', async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const result = await pool.query(
+      'SELECT id, name, role, greeting FROM orchard_workers WHERE pin=$1 AND active=TRUE',
+      [pin]
+    );
+    if(!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid PIN' });
+    res.json({ success: true, worker: result.rows[0] });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/workers/add', async (req, res) => {
+  try {
+    const { name, pin, role, greeting } = req.body;
+    const result = await pool.query(
+      'INSERT INTO orchard_workers (name, pin, role, greeting) VALUES ($1,$2,$3,$4) RETURNING id',
+      [name, pin, role || 'Worker', greeting || 'Hello']
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/workers/toggle', async (req, res) => {
+  try {
+    const { id } = req.body;
+    await pool.query('UPDATE orchard_workers SET active = NOT active WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/workers/update', async (req, res) => {
+  try {
+    const { id, name, pin, role, greeting } = req.body;
+    await pool.query(
+      'UPDATE orchard_workers SET name=$1, pin=$2, role=$3, greeting=$4 WHERE id=$5',
+      [name, pin, role, greeting, id]
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
