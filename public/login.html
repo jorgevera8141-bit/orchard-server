@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchard Field — Login</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:Arial,sans-serif;
+    background:#002244;
+    min-height:100vh;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+  }
+  body::before{
+    content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+    background-image:repeating-linear-gradient(45deg,transparent 0px,transparent 18px,rgba(105,190,40,0.3) 18px,rgba(105,190,40,0.3) 24px,transparent 24px,transparent 30px,rgba(255,255,255,0.12) 30px,rgba(255,255,255,0.12) 34px);
+    pointer-events:none;z-index:0;
+  }
+  .container{
+    position:relative;z-index:1;
+    width:90%;max-width:360px;
+    text-align:center;
+  }
+  .logo{
+    font-family:Georgia,serif;
+    font-size:28px;font-weight:700;
+    color:#ffffff;margin-bottom:6px;
+  }
+  .logo span{color:#69BE28}
+  .subtitle{
+    font-size:11px;color:#4a8a28;
+    font-family:monospace;letter-spacing:2px;
+    text-transform:uppercase;margin-bottom:40px;
+  }
+  .pin-card{
+    background:rgba(0,20,40,0.9);
+    border:1px solid rgba(105,190,40,0.3);
+    border-radius:16px;padding:32px 24px;
+    backdrop-filter:blur(10px);
+  }
+  .pin-label{
+    font-size:11px;color:#69BE28;
+    font-family:monospace;text-transform:uppercase;
+    letter-spacing:2px;margin-bottom:20px;
+  }
+  .pin-display{
+    display:flex;gap:12px;justify-content:center;
+    margin-bottom:28px;
+  }
+  .pin-dot{
+    width:16px;height:16px;border-radius:50%;
+    border:2px solid rgba(105,190,40,0.4);
+    background:transparent;
+    transition:all 0.15s;
+  }
+  .pin-dot.filled{
+    background:#69BE28;
+    border-color:#69BE28;
+    box-shadow:0 0 8px rgba(105,190,40,0.5);
+  }
+  .pin-grid{
+    display:grid;grid-template-columns:1fr 1fr 1fr;
+    gap:12px;
+  }
+  .pin-btn{
+    background:rgba(0,34,68,0.8);
+    border:1px solid rgba(105,190,40,0.2);
+    border-radius:12px;padding:18px;
+    font-size:20px;font-weight:700;color:#ffffff;
+    cursor:pointer;
+    transition:all 0.15s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .pin-btn:active{
+    background:rgba(105,190,40,0.2);
+    border-color:#69BE28;
+    transform:scale(0.95);
+  }
+  .pin-btn.del{color:#ff4444;font-size:16px}
+  .pin-btn.empty{background:transparent;border:none;cursor:default}
+  .error-msg{
+    color:#ff4444;font-size:12px;
+    font-family:monospace;margin-top:16px;
+    min-height:20px;
+  }
+  .greeting{
+    display:none;
+    flex-direction:column;align-items:center;
+    padding:20px 0;
+  }
+  .greeting-name{
+    font-family:Georgia,serif;
+    font-size:28px;font-weight:700;color:#ffffff;
+    margin-bottom:8px;
+  }
+  .greeting-sub{font-size:13px;color:#69BE28;margin-bottom:24px}
+  .spinner{width:24px;height:24px;border:2px solid rgba(105,190,40,0.2);border-top-color:#69BE28;border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">🌿 Orchard<span>Field</span></div>
+  <div class="subtitle">McDougall Family Farming</div>
+
+  <div class="pin-card">
+    <div id="pin-section">
+      <div class="pin-label">Enter Your PIN</div>
+      <div class="pin-display">
+        <div class="pin-dot" id="d1"></div>
+        <div class="pin-dot" id="d2"></div>
+        <div class="pin-dot" id="d3"></div>
+        <div class="pin-dot" id="d4"></div>
+      </div>
+      <div class="pin-grid">
+        <div class="pin-btn" onclick="addPin('1')">1</div>
+        <div class="pin-btn" onclick="addPin('2')">2</div>
+        <div class="pin-btn" onclick="addPin('3')">3</div>
+        <div class="pin-btn" onclick="addPin('4')">4</div>
+        <div class="pin-btn" onclick="addPin('5')">5</div>
+        <div class="pin-btn" onclick="addPin('6')">6</div>
+        <div class="pin-btn" onclick="addPin('7')">7</div>
+        <div class="pin-btn" onclick="addPin('8')">8</div>
+        <div class="pin-btn" onclick="addPin('9')">9</div>
+        <div class="pin-btn empty"></div>
+        <div class="pin-btn" onclick="addPin('0')">0</div>
+        <div class="pin-btn del" onclick="delPin()">⌫</div>
+      </div>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <div class="greeting" id="greeting-section">
+      <div class="spinner" id="greeting-spinner"></div>
+      <div class="greeting-name" id="greeting-name"></div>
+      <div class="greeting-sub" id="greeting-sub"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var pin = '';
+
+// Check if already logged in
+var saved = localStorage.getItem('orchard_worker');
+if(saved){
+  try{
+    var w = JSON.parse(saved);
+    window.location.href = '/index.html';
+  }catch(e){
+    localStorage.removeItem('orchard_worker');
+  }
+}
+
+function addPin(digit){
+  if(pin.length >= 4) return;
+  pin += digit;
+  updateDots();
+  if(pin.length === 4) submitPin();
+}
+
+function delPin(){
+  pin = pin.slice(0,-1);
+  updateDots();
+  document.getElementById('error-msg').textContent = '';
+}
+
+function updateDots(){
+  for(var i=1;i<=4;i++){
+    var dot = document.getElementById('d'+i);
+    if(i <= pin.length) dot.classList.add('filled');
+    else dot.classList.remove('filled');
+  }
+}
+
+function submitPin(){
+  document.getElementById('pin-section').style.display = 'none';
+  document.getElementById('greeting-section').style.display = 'flex';
+
+  fetch('/api/workers/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pin:pin})
+  }).then(r=>r.json()).then(function(data){
+    if(data.success){
+      var w = data.worker;
+      localStorage.setItem('orchard_worker', JSON.stringify(w));
+
+      var hour = new Date().getHours();
+      var timeGreet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+      document.getElementById('greeting-spinner').style.display = 'none';
+      document.getElementById('greeting-name').textContent = w.greeting+', '+w.name+'!';
+      document.getElementById('greeting-sub').textContent = timeGreet+' · '+w.role;
+
+      setTimeout(function(){
+        window.location.href = '/index.html';
+      }, 1800);
+    } else {
+      document.getElementById('greeting-section').style.display = 'none';
+      document.getElementById('pin-section').style.display = 'block';
+      document.getElementById('error-msg').textContent = 'Invalid PIN — try again';
+      pin = '';
+      updateDots();
+    }
+  }).catch(function(){
+    document.getElementById('greeting-section').style.display = 'none';
+    document.getElementById('pin-section').style.display = 'block';
+    document.getElementById('error-msg').textContent = 'Connection error — try again';
+    pin = '';
+    updateDots();
+  });
+}
+</script>
+</body>
+</html>
