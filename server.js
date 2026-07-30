@@ -279,16 +279,24 @@ app.get('/api/shifts/active', async (req, res) => {
 // ── WEEKLY HOURS ──
 app.get('/api/shifts/weekly', async (req, res) => {
   try {
-    // Get start of current week (Saturday to Friday — orchard week)
-    const now = new Date();
-    const day = now.getDay(); // 0=Sun, 6=Sat
-    const daysToSat = day === 6 ? 0 : day + 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - daysToSat);
-    weekStart.setHours(0,0,0,0);
+    // Get start of current week (Sunday to Saturday — Pacific time)
+    // Use Pacific time offset: UTC-7 (PDT) in summer
+    const nowUTC = new Date();
+    const pacificOffset = -7 * 60; // PDT = UTC-7
+    const nowPacific = new Date(nowUTC.getTime() + pacificOffset * 60000);
+    const dayOfWeek = nowPacific.getUTCDay(); // 0=Sunday
+    
+    // Start of week = Sunday Pacific midnight
+    const weekStartPacific = new Date(nowPacific);
+    weekStartPacific.setUTCDate(nowPacific.getUTCDate() - dayOfWeek);
+    weekStartPacific.setUTCHours(0,0,0,0);
+    
+    // Convert back to UTC for database query
+    const weekStart = new Date(weekStartPacific.getTime() - pacificOffset * 60000);
+    
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23,59,59,999);
+    weekEnd.setUTCHours(23,59,59,999);
 
     const result = await pool.query(
       `SELECT s.*, b.location 
