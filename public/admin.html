@@ -79,9 +79,42 @@
     <div class="header-links">
       <a href="/" class="header-link">← Field App</a>
 <a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
+<a href="#" onclick="toggleSection('workers')" class="header-link">Workers</a>
     </div>
   </div>
-
+<!-- WORKERS SECTION -->
+<div id="workers-section" style="display:none;margin-top:20px">
+  <div class="filters-card">
+    <div class="filters-title">Worker Management</div>
+    <div id="workers-list"><div class="spinner"></div></div>
+    <div style="margin-top:16px;border-top:1px solid rgba(105,190,40,0.15);padding-top:16px">
+      <div class="filters-title" style="margin-bottom:12px">Add New Worker</div>
+      <div class="filters-grid">
+        <div class="filter-group">
+          <label>Name</label>
+          <input type="text" id="w-name" placeholder="Worker name" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+        </div>
+        <div class="filter-group">
+          <label>PIN (4 digits)</label>
+          <input type="number" id="w-pin" placeholder="1234" maxlength="4" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+        </div>
+        <div class="filter-group">
+          <label>Role</label>
+          <select id="w-role" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+            <option>Worker</option>
+            <option>Crew Lead</option>
+            <option>Supervisor</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Greeting</label>
+          <input type="text" id="w-greeting" placeholder="Hello" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+        </div>
+      </div>
+      <button onclick="addWorker()" class="btn-search" style="margin-top:8px">Add Worker</button>
+    </div>
+  </div>
+</div>
   <!-- TOTALS -->
   <div class="totals-grid" id="totals-grid">
     <div class="total-card"><div class="spinner"></div></div>
@@ -237,6 +270,58 @@ function showActive(){
   document.getElementById('f-to').value='';
   search();
 }
+function loadWorkers(){
+  fetch('/api/workers').then(r=>r.json()).then(function(data){
+    if(!data.success) return;
+    var html = '<table><thead><tr><th>Name</th><th>Role</th><th>PIN</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+    data.workers.forEach(function(w){
+      var badge = w.active ? 'badge-completed' : 'badge-open';
+      var status = w.active ? 'Active' : 'Inactive';
+      html += '<tr>'
+        +'<td style="font-weight:700">'+w.name+'</td>'
+        +'<td>'+w.role+'</td>'
+        +'<td style="font-family:monospace">****</td>'
+        +'<td><span class="badge '+badge+'">'+status+'</span></td>'
+        +'<td><button onclick="toggleWorker('+w.id+')" style="background:none;border:1px solid #666;border-radius:6px;padding:4px 10px;color:#aaa;font-size:11px;cursor:pointer">'+(w.active?'Deactivate':'Activate')+'</button></td>'
+        +'</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('workers-list').innerHTML = html;
+  });
+}
+
+function addWorker(){
+  var name = document.getElementById('w-name').value.trim();
+  var pin = document.getElementById('w-pin').value.trim();
+  var role = document.getElementById('w-role').value;
+  var greeting = document.getElementById('w-greeting').value.trim() || 'Hello';
+  if(!name || !pin){ alert('Name and PIN required'); return; }
+  if(pin.length !== 4){ alert('PIN must be 4 digits'); return; }
+  fetch('/api/workers/add', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name, pin:pin, role:role, greeting:greeting})
+  }).then(r=>r.json()).then(function(data){
+    if(data.success){
+      document.getElementById('w-name').value='';
+      document.getElementById('w-pin').value='';
+      document.getElementById('w-greeting').value='';
+      loadWorkers();
+    } else {
+      alert('Error: '+data.message);
+    }
+  });
+}
+
+function toggleWorker(id){
+  fetch('/api/workers/toggle', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:id})
+  }).then(r=>r.json()).then(function(data){
+    if(data.success) loadWorkers();
+  });
+}
 function search(){
   var params = new URLSearchParams();
   var block = document.getElementById('f-block').value;
@@ -345,8 +430,13 @@ function toggleSection(section){
   if(section === 'shifts'){
     shifts.style.display = shifts.style.display === 'none' ? 'block' : 'none';
     loadWeeklySummary();
+  } else if(section === 'workers'){
+    workers.style.display = workers.style.display === 'none' ? 'block' : 'none';
+    shifts.style.display = 'none';
+    loadWorkers();
   }
 }
+
 
 function loadWeeklySummary(){
   fetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){
