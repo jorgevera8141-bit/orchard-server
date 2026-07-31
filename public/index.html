@@ -679,7 +679,42 @@ function closeOverlay(){
 }
 
 function logAction(type){
-  alert('Log '+type+' for '+(activeBlock?activeBlock.name:''));
+  if(!activeBlock) return;
+  var block_name = activeBlock.name;
+  var endpoint = '';
+  var body = {block_name: block_name};
+
+  if(type === 'Drip' || type === 'Sprinkler r10'){
+    endpoint = '/api/sessions/start';
+    body.session_type = 'Irrigation';
+    body.irr_type = type;
+  } else if(type === 'End Cycle'){
+    endpoint = '/api/sessions/end';
+  } else if(type === 'Fertilizer'){
+    endpoint = '/api/sessions/fertilizer';
+  } else if(type === 'Foggers'){
+    endpoint = '/api/sessions/foggers';
+  }
+
+  if(!endpoint) return;
+
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.success){
+      closeOverlay();
+      loadBlocks();
+    } else {
+      alert('Error: ' + (data.message||'Unknown error'));
+    }
+  })
+  .catch(function(e){
+    alert('Connection error: ' + e.message);
+  });
 }
 function showHistory(){
   var list = document.getElementById('card-list');
