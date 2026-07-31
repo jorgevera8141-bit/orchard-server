@@ -411,6 +411,53 @@ if(currentWorker){
   if(el) el.textContent = currentWorker.name + ' · ' + currentWorker.role;
 }
 
+// NFC URL parameter — auto open block
+var urlParams = new URLSearchParams(window.location.search);
+var nfcBlock = urlParams.get('block');
+var nfcAction = urlParams.get('action');
+
+if(nfcBlock){
+  window.addEventListener('blocksLoaded', function(){
+    var idx = allBlocks.findIndex(function(b){
+      return b.name.toLowerCase() === decodeURIComponent(nfcBlock).toLowerCase();
+    });
+    if(idx >= 0){
+      if(nfcAction === 'start'){
+        // Auto-log Sprinkler r10 immediately
+        activeBlock = allBlocks[idx];
+        fetch('/api/sessions/start', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({block_name:activeBlock.name, session_type:'Irrigation', irr_type:'Sprinkler r10'})
+        }).then(r=>r.json()).then(function(data){
+          if(data.success){
+            loadBlocks();
+            // Clear URL params
+            window.history.replaceState({}, '', '/');
+          }
+        });
+      } else if(nfcAction === 'end'){
+        // Auto end cycle
+        activeBlock = allBlocks[idx];
+        fetch('/api/sessions/end', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({block_name:activeBlock.name})
+        }).then(r=>r.json()).then(function(data){
+          if(data.success){
+            loadBlocks();
+            window.history.replaceState({}, '', '/');
+          }
+        });
+      } else {
+        // Just open the block overlay
+        openBlock(idx);
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  });
+}
+
 
 // ── DATE ──
 var now = new Date();
@@ -587,6 +634,7 @@ async function loadBlocks(){
       return sa-sb;
     });
     renderCards(allBlocks);
+    window.dispatchEvent(new Event('blocksLoaded'));
   }catch(e){
     document.getElementById('card-list').innerHTML='<div style="color:#ff4444;text-align:center;padding:40px">Error loading blocks</div>';
   }
