@@ -425,37 +425,29 @@ window.addEventListener('blocksLoaded', function(){
       return b.name.toLowerCase() === decodeURIComponent(nfcBlock).toLowerCase();
     });
     if(idx >= 0){
-      if(nfcAction === 'start'){
-        // Auto-log Sprinkler r10 immediately
-        activeBlock = allBlocks[idx];
-        fetch('/api/sessions/start', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({block_name:activeBlock.name, session_type:'Irrigation', irr_type:'Sprinkler r10'})
-        }).then(r=>r.json()).then(function(data){
-          if(data.success){
-            loadBlocks();
-            // Clear URL params
-            window.history.replaceState({}, '', '/');
-          }
-        });
-      } else if(nfcAction === 'end'){
-        // Auto end cycle
-        activeBlock = allBlocks[idx];
+      activeBlock = allBlocks[idx];
+      var hasOpen = allBlocks[idx].openRecordId && allBlocks[idx].openRecordId !== 'null' && allBlocks[idx].openRecordId.length > 0;
+
+      if(hasOpen){
+        // Open session exists — end it
         fetch('/api/sessions/end', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({block_name:activeBlock.name})
         }).then(r=>r.json()).then(function(data){
-          if(data.success){
-            loadBlocks();
-            window.history.replaceState({}, '', '/');
-          }
+          loadBlocks();
+          window.history.replaceState({}, '', '/');
         });
       } else {
-        // Just open the block overlay
-        openBlock(idx);
-        window.history.replaceState({}, '', '/');
+        // No open session — start Sprinkler r10
+        fetch('/api/sessions/start', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({block_name:activeBlock.name, session_type:'Irrigation', irr_type:'Sprinkler r10'})
+        }).then(r=>r.json()).then(function(data){
+          loadBlocks();
+          window.history.replaceState({}, '', '/');
+        });
       }
     }
   });
