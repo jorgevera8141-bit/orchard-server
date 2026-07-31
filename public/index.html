@@ -622,7 +622,7 @@ function openBlock(idx){
   activeBlock = allBlocks[idx];
   var b = activeBlock;
   var dot = getDotColor(getStatus(b.alert));
-  var hasSession = b.openRecordId && b.openRecordId.length > 0;
+  var hasSession = b.openRecordId && b.openRecordId !== 'null' && b.openRecordId.length > 0;
 
   document.getElementById('ov-name').textContent = b.name;
   document.getElementById('ov-name-irr').textContent = b.name;
