@@ -417,8 +417,10 @@ var nfcBlock = urlParams.get('block');
 var nfcAction = urlParams.get('action');
 
 if(nfcBlock){
-  window.addEventListener('blocksLoaded', function handler(){
-    window.removeEventListener('blocksLoaded', handler);
+  var nfcHandled = false;
+window.addEventListener('blocksLoaded', function(){
+    if(nfcHandled) return;
+    nfcHandled = true;
     var idx = allBlocks.findIndex(function(b){
       return b.name.toLowerCase() === decodeURIComponent(nfcBlock).toLowerCase();
     });
