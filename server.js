@@ -64,10 +64,13 @@ app.post('/api/sessions/start', async (req, res) => {
     const { block_name, session_type, irr_type, notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
     if (!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
-    await pool.query(
-      "UPDATE orchard_sessions SET status='completed', finish_time=NOW(), hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600 WHERE block_name=$1 AND status='open'",
-      [block_name]
-    );
+    // Don't close irrigation session if starting Foggers
+    if(session_type !== 'Foggers'){
+      await pool.query(
+        "UPDATE orchard_sessions SET status='completed', finish_time=NOW(), hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600 WHERE block_name=$1 AND status='open' AND session_type != 'Foggers'",
+        [block_name]
+      );
+    }
     const session = await pool.query(
       'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes) VALUES ($1,$2,$3,$4,$5) RETURNING id',
       [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '']
