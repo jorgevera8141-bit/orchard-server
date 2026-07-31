@@ -437,6 +437,24 @@ app.post('/api/workers/update', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── TEMP ALERT ──
+app.post('/api/weather/alert', async (req, res) => {
+  try {
+    const { temp, level } = req.body;
+    const topic = 'orama-ordenes'; // reuse your existing ntfy topic
+    const title = level === 'critical' ? '🚨 COOLING SYSTEM REQUIRED' : '🌫️ Foggers Recommended';
+    const message = `Temperature is ${temp}°F at the orchard. ${level === 'critical' ? 'Start cooling foggers immediately!' : 'Consider running foggers.'}`;
+    
+    await fetch(`https://ntfy.sh/${topic}`, {
+      method: 'POST',
+      headers: { 'Title': title, 'Priority': level === 'critical' ? 'urgent' : 'high', 'Tags': 'thermometer' },
+      body: message
+    });
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));

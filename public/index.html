@@ -271,6 +271,7 @@ body::before{
   </div>
 </div>
 
+<div id="temp-alert" style="display:none;background:rgba(255,204,0,0.9);color:#002244;padding:10px 16px;font-size:13px;font-weight:700;font-family:monospace;align-items:center;justify-content:center;text-align:center;z-index:15;position:relative"></div>
 <div class="filters">
   <div class="pill active" onclick="setFilter('all',this)">All Blocks</div>
   <div class="pill inactive" onclick="setFilter('due',this)">
@@ -507,6 +508,36 @@ function loadWeather(){
         document.getElementById('weather-temp').textContent = data.temp+'°';
         document.getElementById('weather-desc').textContent = data.humidity+'%';
         document.getElementById('weather-badge').title = data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+
+        // Send ntfy alert if threshold crossed
+        var lastTemp = parseInt(localStorage.getItem('last_alert_temp')||'0');
+        if(data.temp >= 90 && lastTemp < 90){
+          fetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'critical'})});
+          localStorage.setItem('last_alert_temp', String(data.temp));
+        } else if(data.temp >= 88 && lastTemp < 88){
+          fetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'warning'})});
+          localStorage.setItem('last_alert_temp', String(data.temp));
+        } else if(data.temp < 88){
+          localStorage.setItem('last_alert_temp', '0');
+        }
+
+        // On-screen alert banner
+        var alert = document.getElementById('temp-alert');
+        if(alert){
+          if(data.temp >= 90){
+            alert.style.display = 'flex';
+            alert.style.background = 'rgba(255,68,68,0.9)';
+            alert.style.color = '#fff';
+            alert.innerHTML = '🚨 '+data.temp+'°F — Cooling system required! Start foggers immediately.';
+          } else if(data.temp >= 88){
+            alert.style.display = 'flex';
+            alert.style.background = 'rgba(255,204,0,0.9)';
+            alert.style.color = '#002244';
+            alert.innerHTML = '🌫️ '+data.temp+'°F — Foggers recommended. Monitor temperature.';
+          } else {
+            alert.style.display = 'none';
+          }
+        }
       }
     });
 }
