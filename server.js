@@ -504,6 +504,25 @@ async function updateWaterAlerts(){
     console.error('Water alert update error:', e.message);
   }
 }
+// ── ADMIN FUEL ──
+app.get('/api/admin/fuel', async (req, res) => {
+  try {
+    const { vehicle, fuel_type, from, to } = req.query;
+    let query = 'SELECT * FROM orchard_fuel WHERE 1=1';
+    let params = [];
+    let i = 1;
+    if(vehicle){ query += ` AND vehicle=$${i++}`; params.push(vehicle); }
+    if(fuel_type){ query += ` AND fuel_type=$${i++}`; params.push(fuel_type); }
+    if(from){ query += ` AND log_date>=$${i++}`; params.push(from); }
+    if(to){ query += ` AND log_date<=$${i++}`; params.push(to); }
+    query += ' ORDER BY log_date DESC, created_at DESC LIMIT 500';
+    const result = await pool.query(query, params);
+    res.json({ success: true, logs: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));

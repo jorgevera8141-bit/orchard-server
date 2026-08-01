@@ -78,8 +78,9 @@
     </div>
     <div class="header-links">
       <a href="/" class="header-link">← Field App</a>
-<a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
-<a href="#" onclick="toggleSection('workers')" class="header-link">Workers</a>
+      <a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
+      <a href="#" onclick="toggleSection('workers')" class="header-link">Workers</a>
+      <a href="#" onclick="toggleSection('fuel')" class="header-link">Fuel</a>
     </div>
   </div>
 <!-- WORKERS SECTION -->
@@ -237,10 +238,63 @@
     <div id="shifts-body"><div class="empty">Search to load shifts</div></div>
   </div>
 </div>
+<!-- FUEL SECTION -->
+<div id="fuel-section" style="display:none;margin-top:20px">
+  <div class="filters-card">
+    <div class="filters-title">Fuel Records</div>
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label>Vehicle</label>
+        <select id="ff-vehicle" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+          <option value="">All Vehicles</option>
+          <option>Truck</option>
+          <option>Tractor</option>
+          <option>ATV</option>
+          <option>Pump</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Fuel Type</label>
+        <select id="ff-type" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+          <option value="">All Types</option>
+          <option>Diesel</option>
+          <option>Gas</option>
+          <option>DEF</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" id="ff-from" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+      </div>
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" id="ff-to" style="width:100%;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 10px;font-size:12px;color:#fff;outline:none">
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-search" onclick="searchFuel()">Search</button>
+      <button class="btn-clear" onclick="clearFuelFilters()">Clear</button>
+      <button class="btn-export" onclick="exportFuelCSV()">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- FUEL TOTALS -->
+  <div id="fuel-totals" style="margin-bottom:20px"></div>
+
+  <!-- FUEL TABLE -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Fuel Records</div>
+      <div class="table-count" id="fuel-count">—</div>
+    </div>
+    <div id="fuel-body"><div class="empty">Search to load fuel records</div></div>
+  </div>
+</div>
 </div>
 
 <script>
 var currentSessions = [];
+var currentFuel = [];
 
 // Load blocks for filter dropdown
 fetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
@@ -322,6 +376,80 @@ function toggleWorker(id){
     if(data.success) loadWorkers();
   });
 }
+
+function searchFuel(){
+  var params = new URLSearchParams();
+  var vehicle = document.getElementById('ff-vehicle').value;
+  var type = document.getElementById('ff-type').value;
+  var from = document.getElementById('ff-from').value;
+  var to = document.getElementById('ff-to').value;
+  if(vehicle) params.append('vehicle', vehicle);
+  if(type) params.append('fuel_type', type);
+  if(from) params.append('from', from);
+  if(to) params.append('to', to);
+
+  document.getElementById('fuel-body').innerHTML = '<div class="spinner"></div>';
+  fetch('/api/admin/fuel?'+params.toString()).then(r=>r.json()).then(function(data){
+    currentFuel = data.logs || [];
+    renderFuelTable(currentFuel);
+    renderFuelTotals(currentFuel);
+  });
+}
+
+function renderFuelTotals(logs){
+  var totalGallons = logs.reduce(function(sum,l){ return sum+parseFloat(l.gallons||0); }, 0);
+  document.getElementById('fuel-totals').innerHTML =
+    '<div class="totals-grid" style="margin-bottom:0">'
+    +'<div class="total-card"><div class="total-num">'+totalGallons.toFixed(1)+'</div><div class="total-label">Total Gallons</div></div>'
+    +'<div class="total-card"><div class="total-num">'+logs.length+'</div><div class="total-label">Total Entries</div></div>'
+    +'</div>';
+}
+
+function renderFuelTable(logs){
+  document.getElementById('fuel-count').textContent = logs.length+' records';
+  if(!logs.length){
+    document.getElementById('fuel-body').innerHTML = '<div class="empty">No fuel records found</div>';
+    return;
+  }
+  var html = '<table><thead><tr>'
+    +'<th>Date</th><th>Vehicle</th><th>Fuel Type</th><th>Gallons</th><th>Operator</th><th>Notes</th>'
+    +'</tr></thead><tbody>';
+  logs.forEach(function(l){
+    html += '<tr>'
+      +'<td>'+formatDate(l.log_date)+'</td>'
+      +'<td>'+l.vehicle+'</td>'
+      +'<td>'+l.fuel_type+'</td>'
+      +'<td style="font-weight:700;color:#69BE28">'+parseFloat(l.gallons).toFixed(1)+'</td>'
+      +'<td>'+l.operator+'</td>'
+      +'<td>'+(l.notes||'—')+'</td>'
+      +'</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('fuel-body').innerHTML = html;
+}
+
+function clearFuelFilters(){
+  document.getElementById('ff-vehicle').value='';
+  document.getElementById('ff-type').value='';
+  document.getElementById('ff-from').value='';
+  document.getElementById('ff-to').value='';
+  searchFuel();
+}
+
+function exportFuelCSV(){
+  if(!currentFuel.length){ alert('No records to export'); return; }
+  var headers = ['Date','Vehicle','Fuel Type','Gallons','Operator','Notes'];
+  var rows = currentFuel.map(function(l){
+    return [formatDate(l.log_date),l.vehicle,l.fuel_type,parseFloat(l.gallons).toFixed(1),l.operator,l.notes||''].join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv],{type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'orchard-fuel-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
 function search(){
   var params = new URLSearchParams();
   var block = document.getElementById('f-block').value;
@@ -427,14 +555,22 @@ function exportCSV(){
 function toggleSection(section){
   var shifts = document.getElementById('shifts-section');
   var workers = document.getElementById('workers-section');
+  var fuel = document.getElementById('fuel-section');
   if(section === 'shifts'){
     shifts.style.display = shifts.style.display === 'none' ? 'block' : 'none';
     workers.style.display = 'none';
+    fuel.style.display = 'none';
     loadWeeklySummary();
   } else if(section === 'workers'){
     workers.style.display = workers.style.display === 'none' ? 'block' : 'none';
     shifts.style.display = 'none';
+    fuel.style.display = 'none';
     loadWorkers();
+  } else if(section === 'fuel'){
+    fuel.style.display = fuel.style.display === 'none' ? 'block' : 'none';
+    shifts.style.display = 'none';
+    workers.style.display = 'none';
+    searchFuel();
   }
 }
 
