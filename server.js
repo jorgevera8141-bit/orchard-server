@@ -96,6 +96,7 @@ app.post('/api/sessions/end', async (req, res) => {
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
     }
+   updateWaterAlerts(); 
     res.json({ success: true, hours: parseFloat(row.hours).toFixed(2) });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
@@ -458,6 +459,51 @@ app.post('/api/weather/alert', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── UPDATE WATER ALERTS ──
+async function updateWaterAlerts(){
+  try {
+    // Get last irrigation session per block (excluding Foggers)
+    const result = await pool.query(`
+      SELECT DISTINCT ON (block_name) 
+        block_name, finish_time
+      FROM orchard_sessions
+      WHERE status='completed' 
+        AND session_type='Irrigation'
+        AND irr_type != 'Foggers'
+        AND finish_time IS NOT NULL
+      ORDER BY block_name, finish_time DESC
+    `);
+
+    for(const row of result.rows){
+      // Get cycle days for this block
+      const block = await pool.query(
+        'SELECT cycle_days FROM orchard_blocks WHERE name=$1',
+        [row.block_name]
+      );
+      if(!block.rows.length) continue;
+
+      const cycleDays = block.rows[0].cycle_days || 6;
+      const lastWatered = new Date(row.finish_time);
+      const nextWater = new Date(lastWatered);
+      nextWater.setDate(lastWatered.getDate() + cycleDays);
+
+      const now = new Date();
+      const daysUntil = Math.floor((nextWater - now) / (1000*60*60*24));
+
+      let alert = '✅ OK';
+      if(daysUntil <= 0) alert = '🛑 Due';
+      else if(daysUntil <= 2) alert = '🟡 Soon';
+
+      await pool.query(
+        'UPDATE orchard_blocks SET water_alert=$1, last_watered=$2, next_water=$3 WHERE name=$4',
+        [alert, lastWatered, nextWater.toISOString().split('T')[0], row.block_name]
+      );
+    }
+    console.log('Water alerts updated');
+  } catch(e) {
+    console.error('Water alert update error:', e.message);
+  }
+}
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
