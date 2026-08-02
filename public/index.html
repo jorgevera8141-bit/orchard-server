@@ -416,6 +416,14 @@ if(currentWorker){
   if(el) el.textContent = currentWorker.name + ' · ' + currentWorker.role;
 }
 
+// Hide admin link for workers
+if(currentWorker && currentWorker.role === 'Worker'){
+  var adminLink = document.querySelector('a[href="/admin.html"]');
+  if(adminLink) adminLink.style.display = 'none';
+}
+
+
+
 // NFC URL parameter — auto open block
 var urlParams = new URLSearchParams(window.location.search);
 var nfcBlock = urlParams.get('block');
