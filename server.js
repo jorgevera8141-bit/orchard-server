@@ -522,7 +522,46 @@ app.get('/api/admin/fuel', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── SWITCH IRRIGATION TYPE ──
+app.post('/api/sessions/switch-type', async (req, res) => {
+  try {
+    const { block_name, irr_type } = req.body;
+    if(!block_name || !irr_type){
+      return res.status(400).json({ success: false, message: 'Block name and irrigation type required' });
+    }
 
+    // Close current open session and log hours
+    const closed = await pool.query(
+      `UPDATE orchard_sessions 
+       SET status='completed', finish_time=NOW(), 
+           hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600
+       WHERE block_name=$1 AND status='open' AND session_type='Irrigation'
+       RETURNING hours`,
+      [block_name]
+    );
+
+    // Update total hours on block
+    if(closed.rows.length && closed.rows[0].hours){
+      await pool.query(
+        'UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2',
+        [parseFloat(closed.rows[0].hours), block_name]
+      );
+    }
+
+    // Start new session with new irrigation type
+    const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
+    if(!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
+
+    const session = await pool.query(
+      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type) VALUES ($1,$2,$3,$4) RETURNING id',
+      [block.rows[0].id, block_name, 'Irrigation', irr_type]
+    );
+
+    res.json({ success: true, session_id: session.rows[0].id });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));

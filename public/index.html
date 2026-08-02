@@ -1069,6 +1069,41 @@ function showEntryDetail(entry){
   document.body.appendChild(detail);
 }
 
+function showSwitchType(){
+  if(!activeBlock) return;
+  var modal = document.createElement('div');
+  modal.id = 'switch-type-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:100%;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = '<div style="background:#001428;border:1px solid #4466aa;border-radius:16px;padding:24px;width:90%">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    +'<span style="color:white;font-size:16px;font-weight:700">🔄 Switch Irrigation Type</span>'
+    +'<button onclick="document.getElementById(\'switch-type-modal\').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>'
+    +'</div>'
+    +'<div style="color:#aaa;font-size:12px;margin-bottom:16px">Block: '+activeBlock.name+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<div onclick="submitSwitchType(\'Sprinkler r10\')" style="background:rgba(255,255,255,0.1);border:2px solid #4466aa;border-radius:12px;padding:16px;color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:center">💦 Sprinkler r10</div>'
+    +'<div onclick="submitSwitchType(\'Drip\')" style="background:rgba(255,255,255,0.1);border:2px solid #4466aa;border-radius:12px;padding:16px;color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+}
+
+function submitSwitchType(irrType){
+  if(!activeBlock) return;
+  fetch('/api/sessions/switch-type', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({block_name:activeBlock.name, irr_type:irrType})
+  }).then(r=>r.json()).then(function(data){
+    if(data.success){
+      document.getElementById('switch-type-modal').remove();
+      closeOverlay();
+      loadBlocks();
+    } else {
+      alert('Error: '+data.message);
+    }
+  });
+}
+
 loadWeeklyHours();
 loadBlocks();
 
