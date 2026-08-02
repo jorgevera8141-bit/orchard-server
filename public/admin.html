@@ -507,7 +507,7 @@ function renderTable(sessions){
     return;
   }
   var html = '<table><thead><tr>'+
-    '<th>Block</th><th>Type</th><th>Irr Type</th><th>Start</th><th>Finish</th><th>Hours</th><th>Status</th><th>Notes</th>'+
+    '<th>Block</th><th>Type</th><th>Irr Type</th><th>Start</th><th>Finish</th><th>Hours</th><th>Status</th><th>Notes</th><th>Actions</th>'+
     '</tr></thead><tbody>';
   sessions.forEach(function(s){
     var typeBadge = s.session_type==='Irrigation'?'badge-irrigation':s.session_type==='Fertilizer'?'badge-fertilizer':'badge-foggers';
@@ -521,12 +521,85 @@ function renderTable(sessions){
       '<td>'+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'—')+'</td>'+
       '<td><span class="badge '+statusBadge+'">'+s.status+'</span></td>'+
       '<td>'+(s.notes||'—')+'</td>'+
+      '<td style="white-space:nowrap">'+
+      '<button onclick="editSession('+JSON.stringify(s)+')" style="background:none;border:1px solid #69BE28;border-radius:6px;padding:3px 8px;color:#69BE28;font-size:10px;cursor:pointer;margin-right:4px">Edit</button>'+
+      '<button onclick="deleteSession('+s.id+')" style="background:none;border:1px solid #ff4444;border-radius:6px;padding:3px 8px;color:#ff4444;font-size:10px;cursor:pointer">Delete</button>'+
+      '</td>'+
       '</tr>';
   });
   html += '</tbody></table>';
   document.getElementById('table-body').innerHTML = html;
 }
+function deleteSession(id){
+  if(!confirm('Delete this session permanently?')) return;
+  fetch('/api/admin/sessions/delete', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:id})
+  }).then(r=>r.json()).then(function(data){
+    if(data.success) search();
+    else alert('Error: '+data.message);
+  });
+}
 
+function editSession(s){
+  var modal = document.createElement('div');
+  modal.id = 'edit-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = '<div style="background:#001428;border:1px solid #69BE28;border-radius:16px;padding:24px;width:90%;max-width:480px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    +'<span style="color:white;font-size:16px;font-weight:700">Edit Session</span>'
+    +'<button onclick="document.getElementById(\'edit-modal\').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Block</div>'
+    +'<input id="e-block" value="'+s.block_name+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Session Type</div>'
+    +'<select id="e-type" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none">'
+    +'<option '+(s.session_type==='Irrigation'?'selected':'')+'>Irrigation</option>'
+    +'<option '+(s.session_type==='Fertilizer'?'selected':'')+'>Fertilizer</option>'
+    +'<option '+(s.session_type==='Foggers'?'selected':'')+'>Foggers</option>'
+    +'</select></div>'
+    +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Irrigation Type</div>'
+    +'<select id="e-irr" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none">'
+    +'<option '+(s.irr_type==='Sprinkler r10'?'selected':'')+'>Sprinkler r10</option>'
+    +'<option '+(s.irr_type==='Drip'?'selected':'')+'>Drip</option>'
+    +'<option '+(s.irr_type==='Foggers'?'selected':'')+'>Foggers</option>'
+    +'<option '+(s.irr_type==='Fertilizer'?'selected':'')+'>Fertilizer</option>'
+    +'</select></div>'
+    +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Status</div>'
+    +'<select id="e-status" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none">'
+    +'<option '+(s.status==='open'?'selected':'')+' value="open">Open</option>'
+    +'<option '+(s.status==='completed'?'selected':'')+' value="completed">Completed</option>'
+    +'</select></div>'
+    +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Notes</div>'
+    +'<input id="e-notes" value="'+(s.notes||'')+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    +'<button onclick="submitEdit('+s.id+')" style="background:#69BE28;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Save Changes</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+}
+
+function submitEdit(id){
+  fetch('/api/admin/sessions/edit', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      id:id,
+      block_name:document.getElementById('e-block').value,
+      session_type:document.getElementById('e-type').value,
+      irr_type:document.getElementById('e-irr').value,
+      status:document.getElementById('e-status').value,
+      notes:document.getElementById('e-notes').value
+    })
+  }).then(r=>r.json()).then(function(data){
+    if(data.success){
+      document.getElementById('edit-modal').remove();
+      search();
+    } else {
+      alert('Error: '+data.message);
+    }
+  });
+}
 function clearFilters(){
   document.getElementById('f-block').value='';
   document.getElementById('f-type').value='';

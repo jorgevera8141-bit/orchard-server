@@ -562,6 +562,31 @@ app.post('/api/sessions/switch-type', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── EDIT/DELETE SESSION ──
+app.post('/api/admin/sessions/delete', async (req, res) => {
+  try {
+    const { id } = req.body;
+    if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
+    await pool.query('DELETE FROM orchard_sessions WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/admin/sessions/edit', async (req, res) => {
+  try {
+    const { id, block_name, session_type, irr_type, notes, status } = req.body;
+    if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
+    await pool.query(
+      'UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5 WHERE id=$6',
+      [block_name, session_type, irr_type, notes || '', status, id]
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
