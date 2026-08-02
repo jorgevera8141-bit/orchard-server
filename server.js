@@ -71,14 +71,25 @@ app.post('/api/sessions/start', async (req, res) => {
         [block_name]
       );
     }
+    // Capture current temperature
+    let tempF = null;
+    try {
+      const apiKey = process.env.OPENWEATHER_API_KEY;
+      if(apiKey){
+        const wRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=47.499334&lon=-120.4423954&appid=${apiKey}&units=imperial`);
+        const wData = await wRes.json();
+        if(wData.main) tempF = Math.round(wData.main.temp);
+      }
+    } catch(e){ console.error('Weather capture error:', e.message); }
+
     const session = await pool.query(
-      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '']
+      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, temp_f) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF]
     );
     if (session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET last_watered=NOW() WHERE name=$1', [block_name]);
     }
-    res.json({ success: true, session_id: session.rows[0].id });
+    res.json({ success: true, session_id: session.rows[0].id, temp_f: tempF });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -87,9 +98,20 @@ app.post('/api/sessions/start', async (req, res) => {
 app.post('/api/sessions/end', async (req, res) => {
   try {
     const { block_name, session_id } = req.body;
+    // Capture temp at end
+    let endTempF = null;
+    try {
+      const apiKey = process.env.OPENWEATHER_API_KEY;
+      if(apiKey){
+        const wRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=47.499334&lon=-120.4423954&appid=${apiKey}&units=imperial`);
+        const wData = await wRes.json();
+        if(wData.main) endTempF = Math.round(wData.main.temp);
+      }
+    } catch(e){ console.error('Weather capture error:', e.message); }
+
     const result = await pool.query(
-      "UPDATE orchard_sessions SET status='completed', finish_time=NOW(), hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600 WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, block_name, session_type",
-      [session_id || 0, block_name]
+      "UPDATE orchard_sessions SET status='completed', finish_time=NOW(), hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, block_name, session_type",
+      [session_id || 0, block_name, endTempF]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
     const row = result.rows[0];
