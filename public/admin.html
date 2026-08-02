@@ -293,6 +293,15 @@
 </div>
 
 <script>
+  // Check admin access
+var worker = null;
+try {
+  worker = JSON.parse(localStorage.getItem('orchard_worker'));
+} catch(e){}
+
+if(!worker || (worker.role !== 'Crew Lead' && worker.role !== 'Supervisor')){
+  window.location.href = '/login.html';
+}
 var currentSessions = [];
 var currentFuel = [];
 

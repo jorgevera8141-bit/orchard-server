@@ -397,6 +397,11 @@ body::before{
 </div>
 
 <script>
+  // Hide admin link for workers
+if(currentWorker && currentWorker.role === 'Worker'){
+  var adminLink = document.querySelector('a[href="/admin.html"]');
+  if(adminLink) adminLink.style.display = 'none';
+}
 // Check login
 var currentWorker = null;
 try {
