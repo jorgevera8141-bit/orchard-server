@@ -576,11 +576,11 @@ app.post('/api/admin/sessions/delete', async (req, res) => {
 
 app.post('/api/admin/sessions/edit', async (req, res) => {
   try {
-    const { id, block_name, session_type, irr_type, notes, status } = req.body;
+    const { id, block_name, session_type, irr_type, notes, status, start_time, finish_time, temp_f } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
     await pool.query(
-      'UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5 WHERE id=$6',
-      [block_name, session_type, irr_type, notes || '', status, id]
+      'UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5, start_time=COALESCE($6,start_time), finish_time=COALESCE($7,finish_time), temp_f=COALESCE($8,temp_f) WHERE id=$9',
+      [block_name, session_type, irr_type, notes || '', status, start_time||null, finish_time||null, temp_f||null, id]
     );
     res.json({ success: true });
   } catch(e) {
