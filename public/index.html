@@ -685,7 +685,8 @@ function openBlock(idx){
 
   if(hasSession){
     document.getElementById('ov-irr-buttons').innerHTML =
-      '<div onclick="logAction(\'End Cycle\')" style="background:rgba(255,68,68,0.2);border:2px solid #ff4444;border-radius:12px;padding:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;text-align:center;width:160px">⏹ End Cycle</div>';
+      '<div onclick="logAction(\'End Cycle\')" style="background:rgba(255,68,68,0.2);border:2px solid #ff4444;border-radius:12px;padding:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;text-align:center;width:160px">⏹ End Cycle</div>'
+      +'<div onclick="showSwitchType()" style="background:rgba(100,150,255,0.2);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center;width:160px;margin-top:8px">🔄 Switch Type</div>';
   } else {
     document.getElementById('ov-irr-buttons').innerHTML =
       '<div onclick="logAction(\'Drip\')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>'
