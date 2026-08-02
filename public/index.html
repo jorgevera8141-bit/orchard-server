@@ -259,8 +259,12 @@ body::before{
   <div class="header-title">
     <h1>Orchard Field Manager</h1>
     <p>McDougall Family Farming</p>
-  <a href="/admin.html" style="color:#69BE28;font-size:11px;border:1px solid rgba(105,190,40,0.3);border-radius:6px;padding:5px 10px;text-decoration:none">Admin</a>
-</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+      <div id="worker-name" style="font-size:10px;color:#69BE28;font-family:monospace"></div>
+      <button onclick="logout()" style="background:none;border:1px solid rgba(255,100,100,0.4);border-radius:6px;padding:3px 8px;color:#ff6666;font-size:9px;font-family:monospace;cursor:pointer">OUT</button>
+    </div>
+    <a href="/admin.html" style="color:#69BE28;font-size:11px;border:1px solid rgba(105,190,40,0.3);border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-top:8px">Admin</a>
+  </div>
 <div id="weather-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#001428;border:1px solid rgba(105,190,40,0.3);margin-right:8px">
   <span id="weather-temp" style="font-size:13px;font-weight:700;color:#69BE28">--°</span>
   <span id="weather-desc" style="font-size:8px;color:#4a8a28;font-family:monospace"></span>
@@ -414,6 +418,12 @@ try {
 if(currentWorker){
   var el = document.getElementById('worker-name');
   if(el) el.textContent = currentWorker.name + ' · ' + currentWorker.role;
+}
+
+function logout(){
+  if(!confirm('Log out?')) return;
+  localStorage.removeItem('orchard_worker');
+  window.location.href = '/login.html';
 }
 
 // Hide admin link for workers
