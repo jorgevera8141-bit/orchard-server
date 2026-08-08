@@ -194,6 +194,7 @@ var liveTimerInterval = null;
 
 function startLiveTimer(startMs) {
   stopLiveTimer();
+  window._sessionStartMs = startMs;
   var timerEl = document.getElementById('ov-live-timer');
   var labelEl = document.getElementById('ov-timer-label');
   if(timerEl) timerEl.style.display = 'block';
@@ -203,7 +204,11 @@ function startLiveTimer(startMs) {
     var h = String(Math.floor(diff / 3600)).padStart(2,'0');
     var m = String(Math.floor((diff % 3600) / 60)).padStart(2,'0');
     var s = String(diff % 60).padStart(2,'0');
-    if(timerEl) timerEl.textContent = h+':'+m+':'+s;
+    var realHours = diff / 3600;
+    var sets = Math.floor(realHours / 12);
+    var timerText = h+':'+m+':'+s;
+    if(sets > 0) timerText += ' · '+sets+' set'+(sets>1?'s':'');
+    if(timerEl) timerEl.textContent = timerText;
   }
   tick();
   liveTimerInterval = setInterval(tick, 1000);
@@ -565,18 +570,9 @@ function showEndTimeModal(blockName) {
   var hint = document.createElement('div');
   hint.style.cssText = 'color:#666;font-size:10px;font-family:monospace;margin-bottom:16px';
   hint.textContent = 'Adjust if you stopped before opening the app';
-  var setsLabel = document.createElement('div');
-  setsLabel.style.cssText = 'color:#ff4444;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:6px;margin-top:8px';
-  setsLabel.textContent = 'Sets Completed';
-  var setsInput = document.createElement('input');
-  setsInput.id = 'end-sets-input';
-  setsInput.type = 'number';
-  setsInput.min = '1';
-  setsInput.placeholder = 'e.g. 3 sets = 36 official hours';
-  setsInput.style.cssText = 'width:100%;background:#002244;border:1px solid rgba(255,68,68,0.4);border-radius:8px;padding:10px 12px;color:white;font-size:14px;outline:none;margin-bottom:8px';
-  var setsHint = document.createElement('div');
-  setsHint.style.cssText = 'color:#666;font-size:10px;font-family:monospace;margin-bottom:16px';
-  setsHint.textContent = 'Each set = 12 official hours. Leave blank if unknown.';
+  var preview = document.createElement('div');
+  preview.style.cssText = 'background:#002244;border-radius:8px;padding:12px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center';
+  preview.id = 'end-preview';
   var btn = document.createElement('button');
   btn.textContent = 'End Session';
   btn.style.cssText = 'background:#ff4444;color:white;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;width:100%';
@@ -585,22 +581,37 @@ function showEndTimeModal(blockName) {
   inner.appendChild(label);
   inner.appendChild(input);
   inner.appendChild(hint);
-  inner.appendChild(setsLabel);
-  inner.appendChild(setsInput);
-  inner.appendChild(setsHint);
+  inner.appendChild(preview);
   inner.appendChild(btn);
+
+  // Update preview when end time changes
+  function updatePreview() {
+    var endVal = input.value;
+    if(!endVal) return;
+    var endMs = new Date(endVal).getTime();
+    var startMs = Date.now() - (liveTimerInterval ? (Date.now() - window._sessionStartMs) : 0);
+    // Get start time from live timer reference
+    var startMsReal = window._sessionStartMs || Date.now();
+    var realHours = (endMs - startMsReal) / 3600000;
+    if(realHours < 0) realHours = 0;
+    var sets = Math.floor(realHours / 12);
+    var officialHours = sets * 12;
+    preview.innerHTML = '<div><div style="color:#69BE28;font-size:18px;font-weight:700">'+realHours.toFixed(1)+'h</div><div style="color:#4a8a28;font-size:9px;font-family:monospace">REAL</div></div>'
+      +'<div><div style="color:#ffcc00;font-size:18px;font-weight:700">'+sets+'</div><div style="color:#4a8a28;font-size:9px;font-family:monospace">SETS</div></div>'
+      +'<div><div style="color:#c8d4e0;font-size:18px;font-weight:700">'+officialHours+'h</div><div style="color:#4a8a28;font-size:9px;font-family:monospace">OFFICIAL</div></div>';
+  }
+  input.addEventListener('change', updatePreview);
+  updatePreview();
   modal.appendChild(inner);
   document.body.appendChild(modal);
 }
 
 function confirmEnd(blockName) {
   var timeInput = document.getElementById('end-time-input');
-  var setsInput = document.getElementById('end-sets-input');
   var endTimeVal = timeInput ? timeInput.value : getLocalISOString(new Date());
-  var setsVal = setsInput && setsInput.value ? parseInt(setsInput.value) : null;
   var modal = document.getElementById('end-time-modal');
   if(modal) modal.remove();
-  var body = { block_name: blockName, end_time: endTimeVal, sets: setsVal };
+  var body = { block_name: blockName, end_time: endTimeVal };
   fetch('/api/sessions/end', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return r.json(); })
     .then(function(data){

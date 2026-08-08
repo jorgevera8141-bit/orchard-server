@@ -122,12 +122,12 @@ app.post('/api/sessions/end', async (req, res) => {
       }
     } catch(e){ console.error('Weather capture error:', e.message); }
 
-    const officialHours = sets ? sets * 12 : null;
     const finishTime = end_time ? new Date(end_time) : new Date();
 
+    // Auto-calculate sets and official hours from real elapsed time
     const result = await pool.query(
-      "UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=$5, official_hours=$6, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, block_name, session_type",
-      [session_id || 0, block_name, endTempF, finishTime.toISOString(), sets || null, officialHours]
+      "UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, sets, official_hours, block_name, session_type",
+      [session_id || 0, block_name, endTempF, finishTime.toISOString()]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
     const row = result.rows[0];
@@ -135,7 +135,7 @@ app.post('/api/sessions/end', async (req, res) => {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
     }
    updateWaterAlerts(); 
-    res.json({ success: true, hours: parseFloat(row.hours).toFixed(2) });
+    res.json({ success: true, hours: parseFloat(row.hours).toFixed(2), sets: row.sets, official_hours: row.official_hours });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
