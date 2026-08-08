@@ -54,6 +54,7 @@ async function initDB() {
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_gallons NUMERIC;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_notes TEXT;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS temp_f NUMERIC;
+    ALTER TABLE orchard_blocks ADD COLUMN IF NOT EXISTS block_notes TEXT;
   `);
   console.log('Database ready');
 }
