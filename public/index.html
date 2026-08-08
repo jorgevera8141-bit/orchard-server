@@ -230,16 +230,12 @@ function updateOnlineStatus() {
     banner.classList.add('visible');
   }
 }
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus();
-
-// ═══════════════════════════════════════════════
-// IMPROVEMENT 5: EXPONENTIAL BACKOFF RETRY
-// ═══════════════════════════════════════════════
 var retryQueue = [];
 var RETRY_DELAYS = [30000, 60000, 120000, 300000, 900000];
 var retryTimer = null;
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 
 function queueRetry(endpoint, body) {
   retryQueue.push({ endpoint: endpoint, body: body, attempt: 0, nextRetryAt: Date.now() + RETRY_DELAYS[0] });
