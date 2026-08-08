@@ -37,10 +37,23 @@ async function initDB() {
       start_time TIMESTAMP DEFAULT NOW(),
       finish_time TIMESTAMP,
       hours NUMERIC,
+      sets INTEGER,
+      official_hours NUMERIC,
+      fertilizer_product TEXT,
+      fertilizer_gallons NUMERIC,
+      fertilizer_notes TEXT,
       notes TEXT,
       status TEXT DEFAULT 'open',
+      temp_f NUMERIC,
       created_at TIMESTAMP DEFAULT NOW()
     );
+    -- Add missing columns to existing tables (safe to run multiple times)
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS sets INTEGER;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS official_hours NUMERIC;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_product TEXT;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_gallons NUMERIC;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_notes TEXT;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS temp_f NUMERIC;
   `);
   console.log('Database ready');
 }
@@ -97,7 +110,7 @@ app.post('/api/sessions/start', async (req, res) => {
 
 app.post('/api/sessions/end', async (req, res) => {
   try {
-    const { block_name, session_id } = req.body;
+    const { block_name, session_id, sets, end_time } = req.body;
     // Capture temp at end
     let endTempF = null;
     try {
@@ -109,9 +122,12 @@ app.post('/api/sessions/end', async (req, res) => {
       }
     } catch(e){ console.error('Weather capture error:', e.message); }
 
+    const officialHours = sets ? sets * 12 : null;
+    const finishTime = end_time ? new Date(end_time) : new Date();
+
     const result = await pool.query(
-      "UPDATE orchard_sessions SET status='completed', finish_time=NOW(), hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, block_name, session_type",
-      [session_id || 0, block_name, endTempF]
+      "UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=$5, official_hours=$6, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, block_name, session_type",
+      [session_id || 0, block_name, endTempF, finishTime.toISOString(), sets || null, officialHours]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
     const row = result.rows[0];
@@ -127,12 +143,12 @@ app.post('/api/sessions/end', async (req, res) => {
 
 app.post('/api/sessions/fertilizer', async (req, res) => {
   try {
-    const { block_name, notes } = req.body;
+    const { block_name, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
     if (!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
     await pool.query(
-      "INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, status, finish_time, hours) VALUES ($1,$2,'Fertilizer','Fertilizer',$3,'completed',NOW(),0)",
-      [block.rows[0].id, block_name, notes || '']
+      "INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes, status, finish_time, hours) VALUES ($1,$2,'Fertilizer','Fertilizer',$3,$4,$5,$6,'completed',NOW(),0)",
+      [block.rows[0].id, block_name, notes || '', fertilizer_product || null, fertilizer_gallons || null, fertilizer_notes || null]
     );
     res.json({ success: true });
   } catch(e) {
