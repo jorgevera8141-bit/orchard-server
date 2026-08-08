@@ -220,6 +220,10 @@ function stopLiveTimer() {
 // ═══════════════════════════════════════════════
 // IMPROVEMENT 4: OFFLINE BANNER
 // ═══════════════════════════════════════════════
+
+var retryQueue = [];
+var RETRY_DELAYS = [30000, 60000, 120000, 300000, 900000];
+var retryTimer = null;
 function updateOnlineStatus() {
   var banner = document.getElementById('offline-banner');
   if(!banner) return;
@@ -230,9 +234,6 @@ function updateOnlineStatus() {
     banner.classList.add('visible');
   }
 }
-var retryQueue = [];
-var RETRY_DELAYS = [30000, 60000, 120000, 300000, 900000];
-var retryTimer = null;
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
