@@ -456,9 +456,8 @@ async function loadBlocks(){
     var res=await fetch(GET_BLOCKS+'/api/blocks');
     var data=await res.json();
     allBlocks=data.blocks.map(function(block){
-      var p=[String(block.name||''),String(block.water_alert||''),String(block.last_watered||''),String(block.next_water||''),String(block.cycle_days||'6'),String(block.instructions||''),block.total_hours,String(block.location||'')+' . '+String(block.irr_type||'')+' . '+String(block.water_source||'')+'.'+String(block.variety||''),String(block.open_session_id||'')];
-      var info=parseBlockInfo((p[7]||'').trim());
-      return {name:(p[0]||'').trim(),alert:(p[1]||'').trim(),lastWatered:formatDate((p[2]||'').trim()),rawLastWatered:(p[2]||'').trim(),nextWater:formatDate((p[3]||'').trim()),cycleDays:(p[4]||'').trim(),instructions:(p[5]||'').trim(),totalHours:parseFloat(p[6])||0,blockInfo:(p[7]||'').trim(),openRecordId:(p[8]||'').trim(),location:info.location,irrTypeMain:info.irrType,waterSource:info.waterSource,variety:info.variety};
+      var openId=String(block.open_session_id||'');
+      return {name:String(block.name||'').trim(),alert:String(block.water_alert||'').trim(),lastWatered:formatDate(block.last_watered),rawLastWatered:String(block.last_watered||''),nextWater:formatDate(block.next_water),cycleDays:String(block.cycle_days||'6'),instructions:String(block.instructions||''),totalHours:parseFloat(block.total_hours)||0,openRecordId:openId,location:String(block.location||'—').trim(),irrTypeMain:String(block.irr_type||'—').trim(),waterSource:String(block.water_source||'—').trim(),variety:String(block.variety||'—').trim(),sessionStart:block.session_start||null};
     });
     allBlocks.sort(function(a,b){var sa=a.alert.includes('🛑')?0:a.alert.includes('🟡')?1:2;var sb=b.alert.includes('🛑')?0:b.alert.includes('🟡')?1:2;return sa-sb;});
     renderCards(allBlocks);
