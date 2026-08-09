@@ -356,7 +356,7 @@ function loadWorkers(){
         +'<td><span class="badge '+badge+'">'+status+'</span></td>'
         +'<td style="white-space:nowrap">'
         +'<button onclick="toggleWorker('+w.id+')" style="background:none;border:1px solid #666;border-radius:6px;padding:4px 10px;color:#aaa;font-size:11px;cursor:pointer;margin-right:4px">'+(w.active?'Deactivate':'Activate')+'</button>'
-        +'<button onclick="editWorker('+w.id+',''+w.name+'',''+w.role+'',''+w.greeting+'')" style="background:none;border:1px solid #69BE28;border-radius:6px;padding:4px 10px;color:#69BE28;font-size:11px;cursor:pointer">Edit</button>'
+        +'<button data-wid="'+w.id+'" data-wname="'+w.name+'" data-wrole="'+w.role+'" data-wgreeting="'+w.greeting+'" onclick="editWorker(parseInt(this.dataset.wid),this.dataset.wname,this.dataset.wrole,this.dataset.wgreeting)" style="background:none;border:1px solid #69BE28;border-radius:6px;padding:4px 10px;color:#69BE28;font-size:11px;cursor:pointer">Edit</button>'
         +'</td>'
         +'</tr>';
     });
