@@ -497,10 +497,17 @@ app.post('/api/workers/toggle', async (req, res) => {
 app.post('/api/workers/update', async (req, res) => {
   try {
     const { id, name, pin, role, greeting } = req.body;
-    await pool.query(
-      'UPDATE orchard_workers SET name=$1, pin=$2, role=$3, greeting=$4 WHERE id=$5',
-      [name, pin, role, greeting, id]
-    );
+    if(pin) {
+      await pool.query(
+        'UPDATE orchard_workers SET name=$1, pin=$2, role=$3, greeting=$4 WHERE id=$5',
+        [name, pin, role, greeting, id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE orchard_workers SET name=$1, role=$2, greeting=$3 WHERE id=$4',
+        [name, role, greeting, id]
+      );
+    }
     res.json({ success: true });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });

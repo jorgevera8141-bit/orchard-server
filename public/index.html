@@ -325,7 +325,12 @@ var currentOperator = 'Jorge';
 try {
   var savedWorker = localStorage.getItem('orchard_worker');
   if(!savedWorker){ window.location.href = '/login.html'; }
-  else { currentWorker = JSON.parse(savedWorker); currentOperator = currentWorker.name; }
+  else {
+    currentWorker = JSON.parse(savedWorker);
+    currentOperator = currentWorker.name;
+    // Boss should not access field app
+    if(currentWorker.role === 'Boss'){ window.location.href = '/admin.html'; }
+  }
 } catch(e){ window.location.href = '/login.html'; }
 
 if(currentWorker){
