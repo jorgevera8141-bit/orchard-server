@@ -83,6 +83,7 @@
       </div>
       <div class="header-links">
         <a href="/" class="header-link">← Field App</a>
+        <a href="#" onclick="toggleSection('today')" class="header-link" style="border-color:#ffcc00;color:#ffcc00">Today</a>
         <a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
         <a href="#" id="workers-link" onclick="toggleSection('workers')" class="header-link">Workers</a>
         <a href="javascript:void(0)" onclick="toggleSection('fuel')" class="header-link">Fuel</a>
@@ -126,6 +127,21 @@
     </div>
   </div>
 </div>
+<!-- TODAY SECTION -->
+<div id="today-section" style="display:none;margin-top:20px">
+  <div class="filters-card">
+    <div class="filters-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📋 Today's Sessions</span>
+      <span id="today-date" style="color:#aaa;font-size:11px;font-family:monospace"></span>
+    </div>
+    <div id="today-body"><div class="spinner"></div></div>
+  </div>
+  <div class="filters-card" style="margin-top:16px">
+    <div class="filters-title">⏱ Today's Shifts</div>
+    <div id="today-shifts-body"><div class="spinner"></div></div>
+  </div>
+</div>
+
   <!-- TOTALS -->
   <div class="totals-grid" id="totals-grid">
     <div class="total-card"><div class="spinner"></div></div>
@@ -755,6 +771,95 @@ function editWorker(id, name, role, greeting){
 var adminWorker = null;
 try { adminWorker = JSON.parse(localStorage.getItem('orchard_worker')); } catch(e){}
 
+function loadToday(){
+  var now = new Date();
+  var pacificDate = now.toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'});
+  document.getElementById('today-date').textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:'America/Los_Angeles'});
+
+  // Load today's irrigation sessions
+  var parts = pacificDate.split('/');
+  var from = parts[2]+'-'+parts[0]+'-'+parts[1];
+  var to = from;
+
+  fetch('/api/admin/sessions?from='+from+'&to='+to+'T23:59:59')
+    .then(r=>r.json())
+    .then(function(data){
+      var sessions = data.sessions || [];
+      if(!sessions.length){
+        document.getElementById('today-body').innerHTML = '<div class="empty">No sessions recorded today</div>';
+        return;
+      }
+      var totalReal = 0;
+      var totalOfficial = 0;
+      var html = '<table><thead><tr>'
+        +'<th>Block</th><th>Type</th><th>Start</th><th>End</th><th>Real h</th><th>Sets</th><th>Official h</th><th>Status</th>'
+        +'</tr></thead><tbody>';
+      sessions.forEach(function(s){
+        var real = s.hours ? parseFloat(s.hours).toFixed(1) : '—';
+        var sets = s.sets || '—';
+        var official = s.official_hours ? parseFloat(s.official_hours).toFixed(0) : '—';
+        var statusColor = s.status === 'open' ? '#ffcc00' : '#69BE28';
+        var rowBg = s.status === 'open' ? 'background:rgba(255,204,0,0.05)' : '';
+        // Flag anomalies
+        var flag = '';
+        if(s.status === 'open') flag = '🟡 ';
+        if(s.hours && parseFloat(s.hours) < 0.1) flag = '⚠️ ';
+        if(totalReal += s.hours ? parseFloat(s.hours) : 0);
+        if(totalOfficial += s.official_hours ? parseFloat(s.official_hours) : 0);
+        html += '<tr style="'+rowBg+'">'
+          +'<td style="font-weight:700">'+flag+s.block_name+'</td>'
+          +'<td>'+s.irr_type+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+formatDate(s.start_time)+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+(s.finish_time?formatDate(s.finish_time):'<span style="color:#ffcc00">Running</span>')+'</td>'
+          +'<td style="color:#69BE28;font-weight:700">'+real+'</td>'
+          +'<td style="color:#c8d4e0">'+sets+'</td>'
+          +'<td style="color:#ffcc00;font-weight:700">'+official+'</td>'
+          +'<td style="color:'+statusColor+';font-size:11px">'+s.status+'</td>'
+          +'</tr>';
+      });
+      html += '</tbody></table>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px">'
+        +'<div class="total-card"><div class="total-num">'+sessions.length+'</div><div class="total-label">Sessions</div></div>'
+        +'<div class="total-card"><div class="total-num" style="color:#69BE28">'+totalReal.toFixed(1)+'h</div><div class="total-label">Real Hours</div></div>'
+        +'<div class="total-card"><div class="total-num" style="color:#ffcc00">'+totalOfficial.toFixed(0)+'h</div><div class="total-label">Official Hours</div></div>'
+        +'</div>';
+      document.getElementById('today-body').innerHTML = html;
+    });
+
+  // Load today's shifts
+  fetch('/api/admin/shifts?from='+from+'&to='+to+'T23:59:59')
+    .then(r=>r.json())
+    .then(function(data){
+      var shifts = data.shifts || [];
+      if(!shifts.length){
+        document.getElementById('today-shifts-body').innerHTML = '<div class="empty">No shifts recorded today</div>';
+        return;
+      }
+      var totalHours = shifts.reduce(function(sum,s){ return sum+(parseFloat(s.total_hours)||0); },0);
+      var html = '<table><thead><tr>'
+        +'<th>Operator</th><th>Activity</th><th>Block</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th>'
+        +'</tr></thead><tbody>';
+      shifts.forEach(function(s){
+        var statusColor = s.status === 'active' ? '#ffcc00' : '#69BE28';
+        html += '<tr>'
+          +'<td style="font-weight:700">'+s.operator+'</td>'
+          +'<td>'+s.activity+'</td>'
+          +'<td>'+(s.block_name||'—')+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+formatDate(s.clock_in)+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+(s.clock_out?formatDate(s.clock_out):'<span style="color:#ffcc00">Active</span>')+'</td>'
+          +'<td style="color:#69BE28;font-weight:700">'+(s.total_hours?parseFloat(s.total_hours).toFixed(2)+'h':'—')+'</td>'
+          +'<td style="color:'+statusColor+';font-size:11px">'+s.status+'</td>'
+          +'</tr>';
+      });
+      html += '</tbody></table>';
+      html += '<div style="margin-top:12px;padding:12px;background:#002244;border-radius:8px;display:flex;justify-content:space-between">'
+        +'<span style="color:#aaa;font-size:12px">Total hours today</span>'
+        +'<span style="color:#69BE28;font-weight:700;font-size:16px">'+totalHours.toFixed(2)+'h</span>'
+        +'</div>';
+      document.getElementById('today-shifts-body').innerHTML = html;
+    });
+}
+
 // Load weather
 function loadWeather(){
   fetch('/api/weather').then(r=>r.json()).then(function(data){
@@ -787,24 +892,28 @@ function toggleSection(section){
   var shifts = document.getElementById('shifts-section');
   var workers = document.getElementById('workers-section');
   var fuel = document.getElementById('fuel-section');
+  var today = document.getElementById('today-section');
+  // Hide all first
+  shifts.style.display = 'none';
+  workers.style.display = 'none';
+  fuel.style.display = 'none';
+  today.style.display = 'none';
   if(section === 'shifts'){
-    shifts.style.display = shifts.style.display === 'none' ? 'block' : 'none';
-    workers.style.display = 'none';
-    fuel.style.display = 'none';
+    shifts.style.display = 'block';
     loadWeeklySummary();
-    if(shifts.style.display !== 'none') shifts.scrollIntoView({behavior:'smooth'});
+    shifts.scrollIntoView({behavior:'smooth'});
   } else if(section === 'workers'){
-    workers.style.display = workers.style.display === 'none' ? 'block' : 'none';
-    shifts.style.display = 'none';
-    fuel.style.display = 'none';
+    workers.style.display = 'block';
     loadWorkers();
-    if(workers.style.display !== 'none') workers.scrollIntoView({behavior:'smooth'});
+    workers.scrollIntoView({behavior:'smooth'});
   } else if(section === 'fuel'){
-    fuel.style.display = fuel.style.display === 'none' ? 'block' : 'none';
-    shifts.style.display = 'none';
-    workers.style.display = 'none';
+    fuel.style.display = 'block';
     searchFuel();
-    if(fuel.style.display !== 'none') fuel.scrollIntoView({behavior:'smooth'});
+    fuel.scrollIntoView({behavior:'smooth'});
+  } else if(section === 'today'){
+    today.style.display = 'block';
+    loadToday();
+    today.scrollIntoView({behavior:'smooth'});
   }
 }
 
