@@ -191,11 +191,15 @@ function submitPin(){
       var timeGreet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
       document.getElementById('greeting-spinner').style.display = 'none';
-      document.getElementById('greeting-name').textContent = w.greeting+', '+w.name+'!';
-      document.getElementById('greeting-sub').textContent = timeGreet+' · '+w.role;
-
+      if(w.role === 'Boss'){
+        document.getElementById('greeting-name').textContent = 'Welcome';
+        document.getElementById('greeting-sub').textContent = timeGreet;
+      } else {
+        document.getElementById('greeting-name').textContent = w.greeting+', '+w.name+'!';
+        document.getElementById('greeting-sub').textContent = timeGreet+' · '+w.role;
+      }
       setTimeout(function(){
-        window.location.href = '/index.html';
+        window.location.href = w.role === 'Boss' ? '/admin.html' : '/index.html';
       }, 1800);
     } else {
       document.getElementById('greeting-section').style.display = 'none';

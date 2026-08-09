@@ -472,9 +472,11 @@ app.post('/api/workers/login', async (req, res) => {
 app.post('/api/workers/add', async (req, res) => {
   try {
     const { name, pin, role, greeting } = req.body;
+    const validRoles = ['Worker', 'Crew Lead', 'Supervisor', 'Boss'];
+    const workerRole = validRoles.includes(role) ? role : 'Worker';
     const result = await pool.query(
       'INSERT INTO orchard_workers (name, pin, role, greeting) VALUES ($1,$2,$3,$4) RETURNING id',
-      [name, pin, role || 'Worker', greeting || 'Hello']
+      [name, pin, workerRole, greeting || 'Hello']
     );
     res.json({ success: true, id: result.rows[0].id });
   } catch(e) {

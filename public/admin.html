@@ -76,13 +76,21 @@
       <h1>🌿 Orchard Admin</h1>
       <p>McDougall Family Farming — Session Records</p>
     </div>
-    <div class="header-links">
-      <a href="/" class="header-link">← Field App</a>
-      <a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
-      <a href="#" onclick="toggleSection('workers')" class="header-link">Workers</a>
-      <a href="javascript:void(0)" onclick="toggleSection('fuel')" class="header-link">Fuel</a>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div id="weather-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#001428;border:1px solid rgba(105,190,40,0.3);cursor:pointer" title="">
+        <span id="weather-temp" style="font-size:13px;font-weight:700;color:#69BE28">--°</span>
+        <span id="weather-desc" style="font-size:8px;color:#4a8a28;font-family:monospace"></span>
+      </div>
+      <div class="header-links">
+        <a href="/" class="header-link">← Field App</a>
+        <a href="#" onclick="toggleSection('shifts')" class="header-link">Shifts</a>
+        <a href="#" id="workers-link" onclick="toggleSection('workers')" class="header-link">Workers</a>
+        <a href="javascript:void(0)" onclick="toggleSection('fuel')" class="header-link">Fuel</a>
+      </div>
     </div>
   </div>
+  <!-- TEMP ALERT BANNER -->
+  <div id="temp-alert" style="display:none;background:rgba(255,204,0,0.9);color:#002244;padding:10px 16px;font-size:13px;font-weight:700;font-family:monospace;text-align:center;border-radius:8px;margin-bottom:12px"></div>
 <!-- WORKERS SECTION -->
 <div id="workers-section" style="display:none;margin-top:20px">
   <div class="filters-card">
@@ -105,6 +113,7 @@
             <option>Worker</option>
             <option>Crew Lead</option>
             <option>Supervisor</option>
+            <option>Boss</option>
           </select>
         </div>
         <div class="filter-group">
@@ -298,18 +307,7 @@ var worker = null;
 try {
   worker = JSON.parse(localStorage.getItem('orchard_worker'));
 } catch(e){}
-if(!worker || (worker.role !== 'Crew Lead' && worker.role !== 'Supervisor')){
-  window.location.href = '/login.html';
-}
-
-
-  // Check admin access
-var worker = null;
-try {
-  worker = JSON.parse(localStorage.getItem('orchard_worker'));
-} catch(e){}
-
-if(!worker || (worker.role !== 'Crew Lead' && worker.role !== 'Supervisor')){
+if(!worker || !['Crew Lead','Supervisor','Boss'].includes(worker.role)){
   window.location.href = '/login.html';
 }
 var currentSessions = [];
@@ -655,6 +653,41 @@ function exportCSV(){
   a.download = 'orchard-sessions-'+new Date().toISOString().split('T')[0]+'.csv';
   a.click();
 }
+
+// Hide workers section for Boss role
+var adminWorker = null;
+try { adminWorker = JSON.parse(localStorage.getItem('orchard_worker')); } catch(e){}
+if(adminWorker && adminWorker.role === 'Boss'){
+  var wLink = document.getElementById('workers-link');
+  if(wLink) wLink.style.display = 'none';
+}
+
+// Load weather
+function loadWeather(){
+  fetch('/api/weather').then(r=>r.json()).then(function(data){
+    if(data.success){
+      document.getElementById('weather-temp').textContent = data.temp+'°';
+      document.getElementById('weather-desc').textContent = data.humidity+'%';
+      document.getElementById('weather-badge').title = data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      var alertEl = document.getElementById('temp-alert');
+      if(data.temp >= 90){
+        alertEl.style.display = 'block';
+        alertEl.style.background = 'rgba(255,68,68,0.9)';
+        alertEl.style.color = '#fff';
+        alertEl.textContent = '🚨 '+data.temp+'°F — Cooling system required! Start foggers immediately.';
+      } else if(data.temp >= 88){
+        alertEl.style.display = 'block';
+        alertEl.style.background = 'rgba(255,204,0,0.9)';
+        alertEl.style.color = '#002244';
+        alertEl.textContent = '🌫️ '+data.temp+'°F — Foggers recommended. Monitor temperature.';
+      } else {
+        alertEl.style.display = 'none';
+      }
+    }
+  });
+}
+loadWeather();
+setInterval(loadWeather, 900000);
 
 // Initial load
 function toggleSection(section){
