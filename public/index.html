@@ -842,6 +842,14 @@ function showEntryDetail(entry){
   html+='</div>';
   detail.innerHTML=html;
   document.body.appendChild(detail);
+  // Attach edit button listeners after DOM is ready
+  detail.querySelectorAll('button[data-shiftid]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = parseInt(btn.getAttribute('data-shiftid'));
+      var shift = window._shiftData[id];
+      if(shift) showEditShiftModal(shift);
+    });
+  });
 }
 
 function showFertilizerModal(blockName) {
