@@ -666,16 +666,19 @@ function toggleSection(section){
     workers.style.display = 'none';
     fuel.style.display = 'none';
     loadWeeklySummary();
+    if(shifts.style.display !== 'none') shifts.scrollIntoView({behavior:'smooth'});
   } else if(section === 'workers'){
     workers.style.display = workers.style.display === 'none' ? 'block' : 'none';
     shifts.style.display = 'none';
     fuel.style.display = 'none';
     loadWorkers();
+    if(workers.style.display !== 'none') workers.scrollIntoView({behavior:'smooth'});
   } else if(section === 'fuel'){
     fuel.style.display = fuel.style.display === 'none' ? 'block' : 'none';
     shifts.style.display = 'none';
     workers.style.display = 'none';
     searchFuel();
+    if(fuel.style.display !== 'none') fuel.scrollIntoView({behavior:'smooth'});
   }
 }
 
