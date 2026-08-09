@@ -751,13 +751,9 @@ function editWorker(id, name, role, greeting){
   document.body.appendChild(modal);
 }
 
-// Hide workers section for Boss role
+// Boss sees everything in admin — no hiding needed
 var adminWorker = null;
 try { adminWorker = JSON.parse(localStorage.getItem('orchard_worker')); } catch(e){}
-if(adminWorker && adminWorker.role === 'Boss'){
-  var wLink = document.getElementById('workers-link');
-  if(wLink) wLink.style.display = 'none';
-}
 
 // Load weather
 function loadWeather(){
