@@ -794,8 +794,9 @@ function showWeeklyHours(){
     if(data.entries.length){
       html+='<div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:8px">Entries</div>';
       data.entries.forEach(function(e){
-        var eStr=JSON.stringify(e).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        html+='<div style="background:#002244;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="showEntryDetail('+eStr+')">'
+        window._entryData = window._entryData || {};
+        window._entryData[e.date] = e;
+        html+='<div style="background:#002244;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" data-entrydate="'+e.date+'" onclick="showEntryDetail(window._entryData[this.dataset.entrydate])">'
           +'<div style="display:flex;justify-content:space-between"><span style="color:white;font-size:13px;font-weight:700">'+e.weekday+'</span><span style="color:#69BE28;font-size:12px;font-weight:700">'+e.day_hours+'h</span></div>'
           +'<div style="color:#aaa;font-size:10px;margin-top:4px">'+e.date+'</div></div>';
       });
