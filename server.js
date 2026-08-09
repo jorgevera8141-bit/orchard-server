@@ -402,6 +402,30 @@ app.get('/api/shifts/weekly', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── EDIT SHIFT ──
+app.post('/api/shifts/edit', async (req, res) => {
+  try {
+    const { id, activity, block_name, clock_in, clock_out } = req.body;
+    if(!id) return res.status(400).json({ success: false, message: 'Shift ID required' });
+    
+    // Calculate total hours if both times provided
+    let totalHours = null;
+    let status = 'active';
+    if(clock_in && clock_out) {
+      totalHours = (new Date(clock_out) - new Date(clock_in)) / 3600000;
+      status = 'completed';
+    }
+
+    await pool.query(
+      'UPDATE orchard_shifts SET activity=$1, block_name=$2, clock_in=$3, clock_out=$4, total_hours=$5, status=$6 WHERE id=$7',
+      [activity, block_name || '', clock_in, clock_out || null, totalHours, status, id]
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ── ADMIN SHIFTS ──
 app.get('/api/admin/shifts', async (req, res) => {
   try {

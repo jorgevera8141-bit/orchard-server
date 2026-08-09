@@ -825,8 +825,14 @@ function showEntryDetail(entry){
   if(entry.shifts.length){
     html+='<div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin:12px 0 8px">Activities</div>';
     entry.shifts.forEach(function(s){
+      var sStr = JSON.stringify(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       html+='<div style="background:#002244;border-radius:8px;padding:10px;margin-bottom:6px">'
-        +'<div style="display:flex;justify-content:space-between"><span style="color:white;font-size:12px;font-weight:700">'+s.activity+'</span><span style="color:#69BE28;font-size:11px">'+(parseFloat(s.total_hours)||0).toFixed(2)+'h</span></div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center">'
+        +'<span style="color:white;font-size:12px;font-weight:700">'+s.activity+'</span>'
+        +'<div style="display:flex;gap:8px;align-items:center">'
+        +'<span style="color:#69BE28;font-size:11px">'+(parseFloat(s.total_hours)||0).toFixed(2)+'h</span>'
+        +'<span onclick="showEditShiftModal('+sStr+')" style="color:#ffcc00;font-size:10px;cursor:pointer;border:1px solid #ffcc00;border-radius:4px;padding:2px 6px">Edit</span>'
+        +'</div></div>'
         +'<div style="color:#aaa;font-size:10px;margin-top:3px">'+(s.block_name||'--')+' - '+(s.location||'--')+'</div>'
         +'<div style="color:#555;font-size:10px;margin-top:2px">'+fT(s.clock_in)+' to '+fT(s.clock_out)+'</div></div>';
     });
@@ -911,6 +917,114 @@ function showFertilizerModal(blockName) {
   inner.appendChild(makeField('Gallons', gallonsInput));
   inner.appendChild(makeField('Notes', notesInput));
   inner.appendChild(btn);
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+}
+
+function showEditShiftModal(shift) {
+  var existing = document.getElementById('edit-shift-modal');
+  if(existing) existing.remove();
+  var modal = document.createElement('div');
+  modal.id = 'edit-shift-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:100%;background:rgba(0,0,0,0.92);z-index:500;display:flex;align-items:center;justify-content:center;';
+
+  var toLocalInput = function(ts) {
+    if(!ts) return '';
+    var d = new Date(ts);
+    var tzOffset = d.getTimezoneOffset() * 60000;
+    return (new Date(d.getTime() - tzOffset)).toISOString().slice(0,16);
+  };
+
+  var inner = document.createElement('div');
+  inner.style.cssText = 'background:#001428;border:1px solid #ffcc00;border-radius:16px;padding:24px;width:90%;max-height:85vh;overflow-y:auto';
+
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:none;border:none;color:#aaa;font-size:20px;cursor:pointer';
+  closeBtn.onclick = function(){ modal.remove(); };
+
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:20px';
+  var title = document.createElement('span');
+  title.style.cssText = 'color:white;font-size:15px;font-weight:700';
+  title.textContent = 'Edit Shift';
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  function makeField(labelText, el) {
+    var wrap = document.createElement('div');
+    wrap.style.marginBottom = '12px';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'color:#ffcc00;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:6px';
+    lbl.textContent = labelText;
+    wrap.appendChild(lbl);
+    wrap.appendChild(el);
+    return wrap;
+  }
+
+  var activityInput = document.createElement('select');
+  activityInput.style.cssText = 'width:100%;background:#002244;border:1px solid rgba(255,204,0,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:13px;outline:none';
+  ['Irrigation','Pruning','Thinning','Picking','General'].forEach(function(a){
+    var opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    if(shift.activity === a) opt.selected = true;
+    activityInput.appendChild(opt);
+  });
+
+  var blockInput = document.createElement('select');
+  blockInput.style.cssText = 'width:100%;background:#002244;border:1px solid rgba(255,204,0,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:13px;outline:none';
+  var blocks = ['','Block 5','Block 6','Block 8','Block 9A','Block 9B','Block 9C','Block 10 Cherry','Block 10 Envy','Block 10 HC','Block 11','Block 12A','Block 12B','Block 12C','Block 12D','Block 20 Barts','Block 20 HC','Block 20 Young Barts','Block 20 Young Barts 2','Block 21','Block 22'];
+  blocks.forEach(function(b){
+    var opt = document.createElement('option');
+    opt.value = b; opt.textContent = b || '-- Select Block --';
+    if(shift.block_name === b) opt.selected = true;
+    blockInput.appendChild(opt);
+  });
+
+  var clockInInput = document.createElement('input');
+  clockInInput.type = 'datetime-local';
+  clockInInput.value = toLocalInput(shift.clock_in);
+  clockInInput.style.cssText = 'width:100%;background:#002244;border:1px solid rgba(255,204,0,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:14px;outline:none';
+
+  var clockOutInput = document.createElement('input');
+  clockOutInput.type = 'datetime-local';
+  clockOutInput.value = toLocalInput(shift.clock_out);
+  clockOutInput.style.cssText = 'width:100%;background:#002244;border:1px solid rgba(255,204,0,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:14px;outline:none';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save Changes';
+  saveBtn.style.cssText = 'background:#ffcc00;color:#002244;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:8px';
+  saveBtn.onclick = function(){
+    var clockIn = clockInInput.value;
+    var clockOut = clockOutInput.value;
+    if(!clockIn){ alert('Clock in time required'); return; }
+    fetch('/api/shifts/edit', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        id: shift.id,
+        activity: activityInput.value,
+        block_name: blockInput.value,
+        clock_in: clockIn,
+        clock_out: clockOut || null
+      })
+    }).then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.success){
+        modal.remove();
+        // Close any open detail modals and refresh weekly hours
+        document.querySelectorAll('[style*="z-index:400"]').forEach(function(el){ el.remove(); });
+        showWeeklyHours();
+      } else { alert('Error: '+(data.message||'Unknown error')); }
+    });
+  };
+
+  inner.appendChild(header);
+  inner.appendChild(makeField('Activity', activityInput));
+  inner.appendChild(makeField('Block', blockInput));
+  inner.appendChild(makeField('Clock In', clockInInput));
+  inner.appendChild(makeField('Clock Out (leave blank if still active)', clockOutInput));
+  inner.appendChild(saveBtn);
   modal.appendChild(inner);
   document.body.appendChild(modal);
 }
