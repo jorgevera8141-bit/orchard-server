@@ -96,9 +96,10 @@ app.post('/api/sessions/start', async (req, res) => {
       }
     } catch(e){ console.error('Weather capture error:', e.message); }
 
+    const sessionDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     const session = await pool.query(
-      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, temp_f) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF]
+      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, temp_f, date) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF, sessionDate]
     );
     if (session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET last_watered=NOW() WHERE name=$1', [block_name]);
@@ -260,15 +261,17 @@ app.get('/api/weather', async (req, res) => {
 });// ── SHIFTS ──
 app.post('/api/shifts/clockin', async (req, res) => {
   try {
-    const { operator, activity, block_name, notes } = req.body;
+    const { operator, activity, block_name, notes, location, variety, day_start_time } = req.body;
     // Close any active shift first
     await pool.query(
       "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active'",
       [operator || 'Jorge']
     );
+    const now = new Date();
+    const date = now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); // YYYY-MM-DD
     const shift = await pool.query(
-      'INSERT INTO orchard_shifts (operator, activity, block_name, notes) VALUES ($1,$2,$3,$4) RETURNING id',
-      [operator || 'Jorge', activity || 'General', block_name || '', notes || '']
+      'INSERT INTO orchard_shifts (operator, activity, block_name, notes, date, location, variety, day_start_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [operator || 'Jorge', activity || 'General', block_name || '', notes || '', date, location || '', variety || '', day_start_time || null]
     );
     res.json({ success: true, shift_id: shift.rows[0].id });
   } catch(e) {
@@ -292,16 +295,18 @@ app.post('/api/shifts/clockout', async (req, res) => {
 
 app.post('/api/shifts/switch', async (req, res) => {
   try {
-    const { operator, activity, block_name } = req.body;
+    const { operator, activity, block_name, location, variety, day_start_time } = req.body;
     // Close current shift
     await pool.query(
       "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active'",
       [operator || 'Jorge']
     );
+    const now = new Date();
+    const date = now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); // YYYY-MM-DD
     // Start new shift with new activity
     const shift = await pool.query(
-      'INSERT INTO orchard_shifts (operator, activity, block_name) VALUES ($1,$2,$3) RETURNING id',
-      [operator || 'Jorge', activity || 'General', block_name || '']
+      'INSERT INTO orchard_shifts (operator, activity, block_name, date, location, variety, day_start_time) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [operator || 'Jorge', activity || 'General', block_name || '', date, location || '', variety || '', day_start_time || null]
     );
     res.json({ success: true, shift_id: shift.rows[0].id });
   } catch(e) {
@@ -405,7 +410,7 @@ app.get('/api/shifts/weekly', async (req, res) => {
 // ── EDIT SHIFT ──
 app.post('/api/shifts/edit', async (req, res) => {
   try {
-    const { id, activity, block_name, clock_in, clock_out } = req.body;
+    const { id, activity, block_name, clock_in, clock_out, location, variety, day_start_time } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Shift ID required' });
     
     // Calculate total hours if both times provided
@@ -416,9 +421,12 @@ app.post('/api/shifts/edit', async (req, res) => {
       status = 'completed';
     }
 
+    // Derive date from clock_in if available
+    const date = clock_in ? new Date(clock_in).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) : null;
+
     await pool.query(
-      'UPDATE orchard_shifts SET activity=$1, block_name=$2, clock_in=$3, clock_out=$4, total_hours=$5, status=$6 WHERE id=$7',
-      [activity, block_name || '', clock_in, clock_out || null, totalHours, status, id]
+      'UPDATE orchard_shifts SET activity=$1, block_name=$2, clock_in=$3, clock_out=$4, total_hours=$5, status=$6, location=$7, variety=$8, day_start_time=$9, date=$10 WHERE id=$11',
+      [activity, block_name || '', clock_in, clock_out || null, totalHours, status, location || '', variety || '', day_start_time || null, date, id]
     );
     res.json({ success: true });
   } catch(e) {
