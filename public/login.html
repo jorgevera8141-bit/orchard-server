@@ -189,6 +189,7 @@ function submitPin(){
     if(data.success){
       var w = data.worker;
       localStorage.setItem('orchard_worker', JSON.stringify(w));
+      if(data.token) localStorage.setItem('orchard_token', data.token);
 
       var hour = new Date().getHours();
       var timeGreet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';

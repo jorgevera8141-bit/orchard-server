@@ -346,6 +346,14 @@ fetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
   });
 });
 
+function authFetch(url, options){
+  options = options || {};
+  options.headers = options.headers || {};
+  var token = localStorage.getItem('orchard_token');
+  if(token) options.headers['Authorization'] = 'Bearer ' + token;
+  return fetch(url, options);
+}
+
 function escapeHtml(s){
   if(!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -398,7 +406,7 @@ function addWorker(){
   var greeting = document.getElementById('w-greeting').value.trim() || 'Hello';
   if(!name || !pin){ alert('Name and PIN required'); return; }
   if(pin.length !== 4){ alert('PIN must be 4 digits'); return; }
-  fetch('/api/workers/add', {
+  authFetch('/api/workers/add', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({name:name, pin:pin, role:role, greeting:greeting})
@@ -415,7 +423,7 @@ function addWorker(){
 }
 
 function toggleWorker(id){
-  fetch('/api/workers/toggle', {
+  authFetch('/api/workers/toggle', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({id:id})
@@ -629,7 +637,7 @@ function showLessSessions(){ _shownCount = 20; renderTableRows(); }
 
 function deleteSession(id){
   if(!confirm('Delete this session permanently?')) return;
-  fetch('/api/admin/sessions/delete', {
+  authFetch('/api/admin/sessions/delete', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({id:id})
@@ -689,7 +697,7 @@ function editSession(s){
 }
 
 function submitEdit(id){
-  fetch('/api/admin/sessions/edit', {
+  authFetch('/api/admin/sessions/edit', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
@@ -800,7 +808,7 @@ function editWorker(id, name, role, greeting){
   saveBtn.onclick = function(){
     var newPin = pinInput.value.trim();
     if(newPin && newPin.length !== 4){ alert('PIN must be 4 digits'); return; }
-    fetch('/api/workers/update', {
+    authFetch('/api/workers/update', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({

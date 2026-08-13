@@ -2,12 +2,66 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// ── CORS — only allow our own origins ──
+const ALLOWED_ORIGINS = [
+  'https://orchard-server-production.up.railway.app',
+  'https://orama.jorgevera8141.workers.dev',
+  'http://localhost:3001',
+  'http://localhost:3000'
+];
+app.use(cors({
+  origin: function(origin, callback){
+    if(!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS: origin not allowed'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static(require('path').join(__dirname, 'public')));
+
+// ── SESSION STORE (in-memory, 12-hour TTL) ──
+const sessions = new Map();
+function generateToken(){ return crypto.randomBytes(32).toString('hex'); }
+function createSession(worker){
+  const token = generateToken();
+  sessions.set(token, { ...worker, expires: Date.now() + 12 * 60 * 60 * 1000 });
+  return token;
+}
+function getSession(token){
+  if(!token) return null;
+  const s = sessions.get(token);
+  if(!s) return null;
+  if(Date.now() > s.expires){ sessions.delete(token); return null; }
+  return s;
+}
+// Clean expired sessions every hour
+setInterval(() => {
+  const now = Date.now();
+  for(const [k,v] of sessions.entries()) if(now > v.expires) sessions.delete(k);
+}, 60 * 60 * 1000);
+
+// ── AUTH MIDDLEWARE ──
+function requireAuth(req, res, next){
+  const token = (req.headers.authorization||'').replace('Bearer ','');
+  const session = getSession(token);
+  if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
+  req.worker = session;
+  next();
+}
+function requireAdmin(req, res, next){
+  const token = (req.headers.authorization||'').replace('Bearer ','');
+  const session = getSession(token);
+  if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
+  if(!['Supervisor','Boss','Crew Lead'].includes(session.role))
+    return res.status(403).json({ success: false, message: 'Admin access required' });
+  req.worker = session;
+  next();
+}
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 console.log('ENV CHECK:', process.env.OPENWEATHER_API_KEY ? 'KEY FOUND' : 'KEY MISSING');
@@ -124,7 +178,7 @@ app.post('/api/blocks/instructions', async (req, res) => {
   }
 });
 
-app.post('/api/sessions/start', async (req, res) => {
+app.post('/api/sessions/start', requireAuth, async (req, res) => {
   try {
     const { block_name, session_type, irr_type, notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
@@ -161,7 +215,7 @@ app.post('/api/sessions/start', async (req, res) => {
   }
 });
 
-app.post('/api/sessions/end', async (req, res) => {
+app.post('/api/sessions/end', requireAuth, async (req, res) => {
   try {
     const { block_name, session_id, sets, end_time } = req.body;
     // Capture temp at end
@@ -208,7 +262,7 @@ app.post('/api/sessions/end', async (req, res) => {
   }
 });
 
-app.post('/api/sessions/fertilizer', async (req, res) => {
+app.post('/api/sessions/fertilizer', requireAuth, async (req, res) => {
   try {
     const { block_name, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
@@ -281,7 +335,7 @@ app.get('/api/admin/blocks', async (req, res) => {
   }
 });
 // ── FUEL LOG ──
-app.post('/api/fuel', async (req, res) => {
+app.post('/api/fuel', requireAuth, async (req, res) => {
   try {
     const { log_date, vehicle, fuel_type, gallons, operator, notes } = req.body;
     await pool.query(
@@ -324,7 +378,7 @@ app.get('/api/weather', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });// ── SHIFTS ──
-app.post('/api/shifts/clockin', async (req, res) => {
+app.post('/api/shifts/clockin', requireAuth, async (req, res) => {
   try {
     const { operator, activity, block_name, notes, location, variety, day_start_time } = req.body;
     // Close any active shift first
@@ -344,7 +398,7 @@ app.post('/api/shifts/clockin', async (req, res) => {
   }
 });
 
-app.post('/api/shifts/clockout', async (req, res) => {
+app.post('/api/shifts/clockout', requireAuth, async (req, res) => {
   try {
     const { operator } = req.body;
     const result = await pool.query(
@@ -358,7 +412,7 @@ app.post('/api/shifts/clockout', async (req, res) => {
   }
 });
 
-app.post('/api/shifts/switch', async (req, res) => {
+app.post('/api/shifts/switch', requireAuth, async (req, res) => {
   try {
     const { operator, activity, block_name, location, variety, day_start_time } = req.body;
     // Close current shift
@@ -536,13 +590,15 @@ app.post('/api/workers/login', async (req, res) => {
       [pin]
     );
     if(!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid PIN' });
-    res.json({ success: true, worker: result.rows[0] });
+    const worker = result.rows[0];
+    const token = createSession(worker);
+    res.json({ success: true, worker, token });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
 });
 
-app.post('/api/workers/add', async (req, res) => {
+app.post('/api/workers/add', requireAdmin, async (req, res) => {
   try {
     const { name, pin, role, greeting } = req.body;
     const validRoles = ['Worker', 'Crew Lead', 'Supervisor', 'Boss'];
@@ -557,7 +613,7 @@ app.post('/api/workers/add', async (req, res) => {
   }
 });
 
-app.post('/api/workers/toggle', async (req, res) => {
+app.post('/api/workers/toggle', requireAdmin, async (req, res) => {
   try {
     const { id } = req.body;
     await pool.query('UPDATE orchard_workers SET active = NOT active WHERE id=$1', [id]);
@@ -567,7 +623,7 @@ app.post('/api/workers/toggle', async (req, res) => {
   }
 });
 
-app.post('/api/workers/update', async (req, res) => {
+app.post('/api/workers/update', requireAdmin, async (req, res) => {
   try {
     const { id, name, pin, role, greeting } = req.body;
     if(pin) {
@@ -693,7 +749,7 @@ app.post('/api/sessions/switch-type', async (req, res) => {
   }
 });
 // ── EDIT/DELETE SESSION ──
-app.post('/api/admin/sessions/delete', async (req, res) => {
+app.post('/api/admin/sessions/delete', requireAdmin, async (req, res) => {
   try {
     const { id } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
@@ -728,7 +784,7 @@ app.post('/api/admin/sessions/delete', async (req, res) => {
   }
 });
 
-app.post('/api/admin/sessions/edit', async (req, res) => {
+app.post('/api/admin/sessions/edit', requireAdmin, async (req, res) => {
   try {
     const { id, block_name, session_type, irr_type, notes, status, start_time, finish_time, temp_f } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });

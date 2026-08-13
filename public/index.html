@@ -304,7 +304,7 @@ function confirmStart(blockName, irrType) {
   if(modal) modal.remove();
   persistSessionStart(blockName, irrType);
   var body = { block_name: blockName, session_type: 'Irrigation', irr_type: irrType, start_time: startTimeVal };
-  fetch('/api/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+  authFetch('/api/sessions/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return r.json(); })
     .then(function(data){
       if(data.success){ closeOverlay(); loadBlocks(); }
@@ -362,11 +362,11 @@ if(nfcBlock){
       activeBlock = allBlocks[idx];
       var hasOpen = allBlocks[idx].openRecordId && allBlocks[idx].openRecordId !== 'null' && allBlocks[idx].openRecordId.length > 0;
       if(hasOpen){
-        fetch('/api/sessions/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name})})
+        authFetch('/api/sessions/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name})})
           .then(r=>r.json()).then(function(){ clearPersistedSession(activeBlock.name); loadBlocks(); window.history.replaceState({},'','/'); });
       } else {
         persistSessionStart(activeBlock.name,'Sprinkler r10');
-        fetch('/api/sessions/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name,session_type:'Irrigation',irr_type:'Sprinkler r10'})})
+        authFetch('/api/sessions/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name,session_type:'Irrigation',irr_type:'Sprinkler r10'})})
           .then(r=>r.json()).then(function(data){ if(!data.success) clearPersistedSession(activeBlock.name); loadBlocks(); window.history.replaceState({},'','/'); });
       }
     }
@@ -412,6 +412,14 @@ function escapeHtml(s){
   if(!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+function authFetch(url, options){
+  options = options || {};
+  options.headers = options.headers || {};
+  var token = localStorage.getItem('orchard_token');
+  if(token) options.headers['Authorization'] = 'Bearer ' + token;
+  return fetch(url, options);
+}
+
 function getStatus(alert){ if((alert||'').includes('🛑')) return 'due'; if((alert||'').includes('🟡')) return 'soon'; return 'ok'; }
 function getDotColor(status){ if(status==='due') return '#ff4444'; if(status==='soon') return '#ffcc00'; return '#69BE28'; }
 
@@ -635,7 +643,7 @@ function confirmEnd(blockName) {
   var b = allBlocks.find(function(bl){ return bl.name === blockName; });
   var sessionId = b && b.openRecordId && b.openRecordId !== 'null' ? b.openRecordId : null;
   var body = { block_name: blockName, end_time: endTimeVal, session_id: sessionId };
-  fetch('/api/sessions/end', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+  authFetch('/api/sessions/end', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return r.json(); })
     .then(function(data){
       if(data.success){ clearPersistedSession(blockName); closeOverlay(); loadBlocks(); }
@@ -732,7 +740,7 @@ function showFuelLog(){
 function submitFuel(){
   var gallons=parseFloat(document.getElementById('fl-gallons').value);
   if(!gallons||gallons<=0){alert('Enter gallons');return;}
-  fetch('/api/fuel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({log_date:document.getElementById('fl-date').value,vehicle:document.getElementById('fl-vehicle').value,fuel_type:document.getElementById('fl-fueltype').value,gallons:gallons,operator:document.getElementById('fl-operator').value,notes:document.getElementById('fl-notes').value})})
+  authFetch('/api/fuel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({log_date:document.getElementById('fl-date').value,vehicle:document.getElementById('fl-vehicle').value,fuel_type:document.getElementById('fl-fueltype').value,gallons:gallons,operator:document.getElementById('fl-operator').value,notes:document.getElementById('fl-notes').value})})
     .then(r=>r.json()).then(function(data){if(data.success){document.getElementById('fuel-modal').remove();alert('Fuel logged!');}else{alert('Error: '+data.message);}});
 }
 
@@ -785,13 +793,13 @@ function submitClockIn(){
   var location=document.getElementById('sh-location').value;
   var variety=document.getElementById('sh-variety').value;
   var dayStart=document.getElementById('sh-daystart').value;
-  fetch('/api/shifts/clockin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator,activity:activity,block_name:block,location:location,variety:variety,day_start_time:dayStart||null})})
+  authFetch('/api/shifts/clockin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator,activity:activity,block_name:block,location:location,variety:variety,day_start_time:dayStart||null})})
     .then(r=>r.json()).then(function(data){if(data.success){document.getElementById('shift-modal').remove();}else{alert('Error: '+data.message);}});
 }
 
 function clockOut(){
   if(!confirm('Clock out now?')) return;
-  fetch('/api/shifts/clockout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator})})
+  authFetch('/api/shifts/clockout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator})})
     .then(r=>r.json()).then(function(data){if(data.success){alert('Clocked out: '+data.hours+' hours logged');}else{alert('Error: '+data.message);}});
 }
 
@@ -840,7 +848,7 @@ function submitSwitch(){
   var block=blkSel==='other'?blkCustom:blkSel;
   var location=document.getElementById('sw-location').value;
   var variety=document.getElementById('sw-variety').value;
-  fetch('/api/shifts/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator,activity:activity,block_name:block,location:location,variety:variety})})
+  authFetch('/api/shifts/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operator:currentOperator,activity:activity,block_name:block,location:location,variety:variety})})
     .then(r=>r.json()).then(function(data){if(data.success){document.getElementById('shift-modal').remove();alert('Switched to: '+activity);}else{alert('Error: '+data.message);}});
 }
 
@@ -987,7 +995,7 @@ function showFertilizerModal(blockName) {
     if(!product){ alert('Enter fertilizer product'); return; }
     if(!gallons || gallons <= 0){ alert('Enter gallons'); return; }
     var body = { block_name: blockName, fertilizer_product: product, fertilizer_gallons: gallons, fertilizer_notes: notes };
-    fetch('/api/sessions/fertilizer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+    authFetch('/api/sessions/fertilizer', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
       .then(function(r){ return r.json(); })
       .then(function(data){
         if(data.success){ modal.remove(); closeOverlay(); loadBlocks(); }
@@ -1140,7 +1148,7 @@ function showEditShiftModal(shift) {
     var clockIn = clockInInput.value;
     var clockOut = clockOutInput.value;
     if(!clockIn){ alert('Clock in time required'); return; }
-    fetch('/api/shifts/edit', {
+    authFetch('/api/shifts/edit', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -1188,7 +1196,7 @@ function showSwitchType(){
 
 function submitSwitchType(irrType){
   if(!activeBlock) return;
-  fetch('/api/sessions/switch-type',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name,irr_type:irrType})})
+  authFetch('/api/sessions/switch-type',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({block_name:activeBlock.name,irr_type:irrType})})
     .then(r=>r.json()).then(function(data){if(data.success){document.getElementById('switch-type-modal').remove();closeOverlay();loadBlocks();}else{alert('Error: '+data.message);}});
 }
 
