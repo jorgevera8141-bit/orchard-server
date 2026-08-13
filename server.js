@@ -567,8 +567,12 @@ async function updateWaterAlerts(){
       const nextWater = new Date(lastWatered);
       nextWater.setDate(lastWatered.getDate() + cycleDays);
 
-      const now = new Date();
-      const daysUntil = Math.floor((nextWater - now) / (1000*60*60*24));
+      // Use Pacific date to avoid UTC drift bug
+      const todayPacific = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      todayPacific.setHours(0,0,0,0);
+      const nextWaterMidnight = new Date(nextWater);
+      nextWaterMidnight.setHours(0,0,0,0);
+      const daysUntil = Math.floor((nextWaterMidnight - todayPacific) / (1000*60*60*24));
 
       let alert = '✅ OK';
       if(daysUntil <= 0) alert = '🛑 Due';
