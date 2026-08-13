@@ -705,7 +705,7 @@ initDB().then(() => {
     const now = new Date();
     const hourUTC = now.getUTCHours();
     const minUTC = now.getUTCMinutes();
-    if(hourUTC === 12 && minUTC < 60) { // 5am Pacific = 12:00 UTC
+    if(hourUTC === 11 && minUTC < 60) { // 4am Pacific = 11:00 UTC
       await sendMorningWaterAlerts();
     }
   }, 60 * 60 * 1000); // every hour
