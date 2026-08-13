@@ -135,8 +135,20 @@ app.post('/api/sessions/end', async (req, res) => {
     const row = result.rows[0];
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
+      // Update last_watered and next_water using Pacific date — avoids UTC drift
+      const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      const lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [row.block_name]);
+      if(blockData.rows.length) {
+        const cycleDays = blockData.rows[0].cycle_days || 6;
+        const nextWater = new Date(pacificDate);
+        nextWater.setDate(pacificDate.getDate() + cycleDays);
+        const nextWaterDate = nextWater.toLocaleDateString('en-CA');
+        await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
+          [lastWateredDate, nextWaterDate, row.block_name]);
+      }
     }
-   updateWaterAlerts(); 
+    updateWaterAlerts();
     res.json({ success: true, hours: parseFloat(row.hours).toFixed(2), sets: row.sets, official_hours: row.official_hours });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
@@ -542,35 +554,16 @@ app.post('/api/weather/alert', async (req, res) => {
 // ── UPDATE WATER ALERTS ──
 async function updateWaterAlerts(){
   try {
-    // Get last irrigation session per block (excluding Foggers)
-    const result = await pool.query(`
-      SELECT DISTINCT ON (block_name) 
-        block_name, finish_time
-      FROM orchard_sessions
-      WHERE status='completed' 
-        AND session_type='Irrigation'
-        AND irr_type != 'Foggers'
-        AND finish_time IS NOT NULL
-      ORDER BY block_name, finish_time DESC
-    `);
+    // Only recalculate water_alert based on stored next_water — never overwrite dates from sessions
+    const blocks = await pool.query(
+      'SELECT name, next_water FROM orchard_blocks WHERE next_water IS NOT NULL'
+    );
 
-    for(const row of result.rows){
-      // Get cycle days for this block
-      const block = await pool.query(
-        'SELECT cycle_days FROM orchard_blocks WHERE name=$1',
-        [row.block_name]
-      );
-      if(!block.rows.length) continue;
+    const todayPacific = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    todayPacific.setHours(0,0,0,0);
 
-      const cycleDays = block.rows[0].cycle_days || 6;
-      const lastWatered = new Date(row.finish_time);
-      const nextWater = new Date(lastWatered);
-      nextWater.setDate(lastWatered.getDate() + cycleDays);
-
-      // Use Pacific date to avoid UTC drift bug
-      const todayPacific = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-      todayPacific.setHours(0,0,0,0);
-      const nextWaterMidnight = new Date(nextWater);
+    for(const block of blocks.rows){
+      const nextWaterMidnight = new Date(block.next_water);
       nextWaterMidnight.setHours(0,0,0,0);
       const daysUntil = Math.floor((nextWaterMidnight - todayPacific) / (1000*60*60*24));
 
@@ -579,8 +572,8 @@ async function updateWaterAlerts(){
       else if(daysUntil <= 2) alert = '🟡 Soon';
 
       await pool.query(
-        'UPDATE orchard_blocks SET water_alert=$1, last_watered=$2, next_water=$3 WHERE name=$4',
-        [alert, lastWatered, nextWater.toISOString().split('T')[0], row.block_name]
+        'UPDATE orchard_blocks SET water_alert=$1 WHERE name=$2',
+        [alert, block.name]
       );
     }
     console.log('Water alerts updated');
