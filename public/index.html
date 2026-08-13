@@ -670,16 +670,28 @@ function showHistory(){
   fetch('/api/admin/sessions?status=completed').then(r=>r.json()).then(function(data){
     var sessions=data.sessions;
     if(!sessions.length){list.innerHTML='<div style="color:#4a8a28;text-align:center;padding:40px">No records yet</div>';return;}
-    list.innerHTML='<div style="padding:8px 16px"><div onclick="loadBlocks()" style="color:#69BE28;font-size:12px;cursor:pointer">← Back to blocks</div></div>'+
-      sessions.slice(0,50).map(function(s){
+    var shown = 10;
+    function renderHistory(){
+      window._histSessions = sessions;
+      var rows = sessions.slice(0,shown).map(function(s,i){
         return '<div style="background:rgba(0,20,40,0.85);border:1px solid rgba(105,190,40,0.15);border-radius:10px;margin:6px 16px;padding:12px">'
-          +'<div style="display:flex;justify-content:space-between">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center">'
           +'<span style="color:white;font-size:13px;font-weight:700">'+s.block_name+'</span>'
           +'<span style="color:#69BE28;font-size:10px;font-family:monospace">'+s.session_type+'</span>'
           +'</div>'
-          +'<div style="color:#aaa;font-size:10px;margin-top:4px">'+formatDate(s.start_time)+' · '+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'open')+'</div>'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'
+          +'<span style="color:#aaa;font-size:10px">'+formatDateOnly(s.start_time)+' · '+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'open')+'</span>'
+          +'<span onclick="editSessionFromHistory('+i+')" style="color:#ffcc00;font-size:10px;cursor:pointer;border:1px solid #ffcc00;border-radius:4px;padding:2px 8px;font-family:monospace">Edit</span>'
+          +'</div>'
           +'</div>';
       }).join('');
+      var moreBtn = shown < sessions.length
+        ? '<div onclick="showMore()" style="text-align:center;padding:12px 16px;color:#69BE28;font-size:12px;cursor:pointer;font-family:monospace">Show More ('+sessions.length+' total)</div>'
+        : '<div style="text-align:center;padding:12px;color:#4a8a28;font-size:11px;font-family:monospace">All '+sessions.length+' records shown</div>';
+      list.innerHTML='<div style="padding:8px 16px"><div onclick="loadBlocks()" style="color:#69BE28;font-size:12px;cursor:pointer">← Back to blocks</div></div>'+rows+moreBtn;
+    }
+    window.showMore = function(){ shown = Math.min(shown+10, sessions.length); renderHistory(); };
+    renderHistory();
   });
 }
 
@@ -982,6 +994,64 @@ function showFertilizerModal(blockName) {
   inner.appendChild(makeField('Gallons', gallonsInput));
   inner.appendChild(makeField('Notes', notesInput));
   inner.appendChild(btn);
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+}
+
+function editSessionFromHistory(idx){
+  var s = window._histSessions[idx];
+  if(!s) return;
+  var toLocalInput = function(ts){
+    if(!ts) return '';
+    var d = new Date(ts);
+    var tzOffset = d.getTimezoneOffset()*60000;
+    return (new Date(d.getTime()-tzOffset)).toISOString().slice(0,16);
+  };
+  var modal = document.createElement('div');
+  modal.id = 'edit-session-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:100%;background:rgba(0,0,0,0.92);z-index:500;overflow-y:auto;display:flex;align-items:center;justify-content:center;';
+  var inner = document.createElement('div');
+  inner.style.cssText = 'background:#001428;border:1px solid #69BE28;border-radius:16px;padding:24px;width:90%;margin:auto';
+
+  var startInput = document.createElement('input');
+  startInput.type='datetime-local';
+  startInput.value=toLocalInput(s.start_time);
+  startInput.style.cssText='width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:14px;outline:none';
+
+  var endInput = document.createElement('input');
+  endInput.type='datetime-local';
+  endInput.value=toLocalInput(s.finish_time);
+  endInput.style.cssText='width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:10px 12px;color:white;font-size:14px;outline:none';
+
+  function makeField(label, el){
+    var wrap=document.createElement('div');wrap.style.marginBottom='12px';
+    var lbl=document.createElement('div');lbl.style.cssText='color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:6px';lbl.textContent=label;
+    wrap.appendChild(lbl);wrap.appendChild(el);return wrap;
+  }
+
+  var saveBtn=document.createElement('button');
+  saveBtn.textContent='Save';
+  saveBtn.style.cssText='background:#69BE28;color:#002244;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:8px';
+  saveBtn.onclick=function(){
+    fetch('/api/admin/sessions/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      id:s.id,block_name:s.block_name,session_type:s.session_type,irr_type:s.irr_type,
+      notes:s.notes,status:s.status,start_time:startInput.value||null,finish_time:endInput.value||null
+    })}).then(r=>r.json()).then(function(data){
+      if(data.success){modal.remove();showHistory();}
+      else{alert('Error: '+(data.message||'Unknown'));}
+    });
+  };
+
+  var closeBtn=document.createElement('button');
+  closeBtn.textContent='✕';closeBtn.style.cssText='background:none;border:none;color:#aaa;font-size:20px;cursor:pointer';
+  closeBtn.onclick=function(){modal.remove();};
+  var hdr=document.createElement('div');hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:20px';
+  var ttl=document.createElement('span');ttl.style.cssText='color:white;font-size:15px;font-weight:700';ttl.textContent='Edit Session — '+s.block_name;
+  hdr.appendChild(ttl);hdr.appendChild(closeBtn);
+  inner.appendChild(hdr);
+  inner.appendChild(makeField('Start Time', startInput));
+  inner.appendChild(makeField('End Time', endInput));
+  inner.appendChild(saveBtn);
   modal.appendChild(inner);
   document.body.appendChild(modal);
 }
