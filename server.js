@@ -73,6 +73,16 @@ app.get('/api/blocks', async (req, res) => {
   }
 });
 
+app.post('/api/blocks/instructions', async (req, res) => {
+  try {
+    const { block_name, instructions } = req.body;
+    await pool.query('UPDATE orchard_blocks SET instructions=$1 WHERE name=$2', [instructions, block_name]);
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.post('/api/sessions/start', async (req, res) => {
   try {
     const { block_name, session_type, irr_type, notes } = req.body;
