@@ -392,6 +392,21 @@ function formatDate(str){
   }catch(e){return str;}
 }
 
+function formatDateOnly(str){
+  if(!str) return '—';
+  try{
+    // Parse as local date to avoid UTC shift — dates stored as YYYY-MM-DD
+    var parts = str.split('T')[0].split('-');
+    if(parts.length === 3){
+      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return months[parseInt(parts[1])-1] + ' ' + parseInt(parts[2]);
+    }
+    var d = new Date(str);
+    if(isNaN(d)) return str;
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'});
+  }catch(e){return str;}
+}
+
 function getStatus(alert){ if((alert||'').includes('🛑')) return 'due'; if((alert||'').includes('🟡')) return 'soon'; return 'ok'; }
 function getDotColor(status){ if(status==='due') return '#ff4444'; if(status==='soon') return '#ffcc00'; return '#69BE28'; }
 
@@ -464,7 +479,7 @@ async function loadBlocks(){
     var data=await res.json();
     allBlocks=data.blocks.map(function(block){
       var openId=String(block.open_session_id||'');
-      return {name:String(block.name||'').trim(),alert:String(block.water_alert||'').trim(),lastWatered:formatDate(block.last_watered),rawLastWatered:String(block.last_watered||''),nextWater:formatDate(block.next_water),cycleDays:String(block.cycle_days||'6'),instructions:String(block.instructions||''),totalHours:parseFloat(block.total_hours)||0,openRecordId:openId,location:String(block.location||'—').trim(),irrTypeMain:String(block.irr_type||'—').trim(),waterSource:String(block.water_source||'—').trim(),variety:String(block.variety||'—').trim(),sessionStart:block.session_start||null};
+      return {name:String(block.name||'').trim(),alert:String(block.water_alert||'').trim(),lastWatered:formatDateOnly(block.last_watered),rawLastWatered:String(block.last_watered||''),nextWater:formatDateOnly(block.next_water),cycleDays:String(block.cycle_days||'6'),instructions:String(block.instructions||''),totalHours:parseFloat(block.total_hours)||0,openRecordId:openId,location:String(block.location||'—').trim(),irrTypeMain:String(block.irr_type||'—').trim(),waterSource:String(block.water_source||'—').trim(),variety:String(block.variety||'—').trim(),sessionStart:block.session_start||null};
     });
     allBlocks.sort(function(a,b){var sa=a.alert.includes('🛑')?0:a.alert.includes('🟡')?1:2;var sb=b.alert.includes('🛑')?0:b.alert.includes('🟡')?1:2;return sa-sb;});
     renderCards(allBlocks);
