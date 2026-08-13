@@ -481,7 +481,11 @@ async function loadBlocks(){
       var openId=String(block.open_session_id||'');
       return {name:String(block.name||'').trim(),alert:String(block.water_alert||'').trim(),lastWatered:formatDateOnly(block.last_watered),rawLastWatered:String(block.last_watered||''),nextWater:formatDateOnly(block.next_water),cycleDays:String(block.cycle_days||'6'),instructions:String(block.instructions||''),totalHours:parseFloat(block.total_hours)||0,openRecordId:openId,location:String(block.location||'—').trim(),irrTypeMain:String(block.irr_type||'—').trim(),waterSource:String(block.water_source||'—').trim(),variety:String(block.variety||'—').trim(),sessionStart:block.session_start||null};
     });
-    allBlocks.sort(function(a,b){var sa=a.alert.includes('🛑')?0:a.alert.includes('🟡')?1:2;var sb=b.alert.includes('🛑')?0:b.alert.includes('🟡')?1:2;return sa-sb;});
+    allBlocks.sort(function(a,b){
+      var sa=a.openRecordId&&a.openRecordId!=='null'&&a.openRecordId.length>0?0:a.alert.includes('🛑')?1:a.alert.includes('🟡')?2:3;
+      var sb=b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0?0:b.alert.includes('🛑')?1:b.alert.includes('🟡')?2:3;
+      return sa-sb;
+    });
     renderCards(allBlocks);
     window.dispatchEvent(new Event('blocksLoaded'));
   }catch(e){
@@ -498,15 +502,7 @@ function renderCards(blocks){
     var side=i%2===0?'card-left':'card-right';
     var savedSession=getPersistedSession(b.name);
     var hasActive=(b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0)||savedSession;
-    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'
-      +'<div class="hex hex-green"></div>'
-      +'<div class="hex hex-navy"></div>'
-      +'<div class="hex hex-grey">'
-      +'<div class="card-content">'
-      +'<div class="card-name">'+b.name+'<span class="sdot" style="background:'+dot+'"></span>'+(hasActive?'<span style="font-size:8px;color:#4466aa;animation:pulse 1.5s infinite">●</span>':'')+'</div>'
-      +'<div class="card-sub">Last: '+b.lastWatered+'</div>'
-      +'<div class="card-sub">Next: '+b.nextWater+'</div>'
-      +'</div></div></div>';
+    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:8px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:2px 7px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+b.name+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+b.lastWatered+'</div>'      +'<div class="card-sub">Next: '+b.nextWater+'</div>'      +'</div></div></div>';
   }).join('');
 }
 
