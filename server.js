@@ -697,7 +697,31 @@ app.post('/api/admin/sessions/delete', async (req, res) => {
   try {
     const { id } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
+    // Get session info before deleting so we can recalculate block
+    const sess = await pool.query('SELECT block_name, session_type FROM orchard_sessions WHERE id=$1', [id]);
     await pool.query('DELETE FROM orchard_sessions WHERE id=$1', [id]);
+    // Recalculate block totals from remaining sessions
+    if(sess.rows.length && sess.rows[0].session_type === 'Irrigation') {
+      const block_name = sess.rows[0].block_name;
+      const totals = await pool.query(
+        "SELECT COALESCE(SUM(hours),0) as total_hours, MAX(finish_time) as last_watered FROM orchard_sessions WHERE block_name=$1 AND status='completed' AND session_type='Irrigation'",
+        [block_name]
+      );
+      const t = totals.rows[0];
+      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [block_name]);
+      const cycleDays = blockData.rows.length ? (blockData.rows[0].cycle_days || 6) : 6;
+      let nextWater = null;
+      if(t.last_watered) {
+        const lw = new Date(t.last_watered.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lw.setDate(lw.getDate() + cycleDays);
+        nextWater = lw.toLocaleDateString('en-CA');
+      }
+      await pool.query(
+        'UPDATE orchard_blocks SET total_hours=$1, last_watered=$2, next_water=$3 WHERE name=$4',
+        [parseFloat(t.total_hours), t.last_watered, nextWater, block_name]
+      );
+      updateWaterAlerts();
+    }
     res.json({ success: true });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
@@ -712,6 +736,27 @@ app.post('/api/admin/sessions/edit', async (req, res) => {
       'UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5, start_time=COALESCE($6,start_time), finish_time=COALESCE($7,finish_time), temp_f=COALESCE($8,temp_f) WHERE id=$9',
       [block_name, session_type, irr_type, notes || '', status, start_time||null, finish_time||null, temp_f||null, id]
     );
+    // Recalculate block totals if this was an irrigation session
+    if(session_type === 'Irrigation') {
+      const totals = await pool.query(
+        "SELECT COALESCE(SUM(hours),0) as total_hours, MAX(finish_time) as last_watered FROM orchard_sessions WHERE block_name=$1 AND status='completed' AND session_type='Irrigation'",
+        [block_name]
+      );
+      const t = totals.rows[0];
+      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [block_name]);
+      const cycleDays = blockData.rows.length ? (blockData.rows[0].cycle_days || 6) : 6;
+      let nextWater = null;
+      if(t.last_watered) {
+        const lw = new Date(t.last_watered.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lw.setDate(lw.getDate() + cycleDays);
+        nextWater = lw.toLocaleDateString('en-CA');
+      }
+      await pool.query(
+        'UPDATE orchard_blocks SET total_hours=$1, last_watered=$2, next_water=$3 WHERE name=$4',
+        [parseFloat(t.total_hours), t.last_watered, nextWater, block_name]
+      );
+      updateWaterAlerts();
+    }
     res.json({ success: true });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
