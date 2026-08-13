@@ -407,6 +407,11 @@ function formatDateOnly(str){
   }catch(e){return str;}
 }
 
+
+function escapeHtml(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function getStatus(alert){ if((alert||'').includes('🛑')) return 'due'; if((alert||'').includes('🟡')) return 'soon'; return 'ok'; }
 function getDotColor(status){ if(status==='due') return '#ff4444'; if(status==='soon') return '#ffcc00'; return '#69BE28'; }
 
@@ -502,7 +507,7 @@ function renderCards(blocks){
     var side=i%2===0?'card-left':'card-right';
     var savedSession=getPersistedSession(b.name);
     var hasActive=(b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0)||savedSession;
-    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:8px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:2px 7px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+b.name+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+b.lastWatered+'</div>'      +'<div class="card-sub">Next: '+b.nextWater+'</div>'      +'</div></div></div>';
+    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:8px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:2px 7px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+escapeHtml(b.name)+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+escapeHtml(b.lastWatered)+'</div>'      +'<div class="card-sub">Next: '+escapeHtml(b.nextWater)+'</div>'      +'</div></div></div>';
   }).join('');
 }
 
@@ -518,7 +523,7 @@ function openBlock(idx){
   document.getElementById('ov-name-irr').textContent=b.name;
   document.getElementById('ov-name-fert').textContent=b.name;
   document.getElementById('ov-dot').style.background=dot;
-  document.getElementById('ov-info-content').innerHTML='Last Watered: '+b.lastWatered+'<br>Next Water: '+b.nextWater+'<br>Type: '+b.irrTypeMain+'<br>Location: '+b.location+'<br>Water Source: '+b.waterSource+'<br>Variety: '+b.variety+'<br>Total Hours: '+b.totalHours+'h<br>Cycle: '+b.cycleDays+' days'+(b.instructions?'<br>Notes: '+b.instructions:'');
+  document.getElementById('ov-info-content').innerHTML='Last Watered: '+escapeHtml(b.lastWatered)+'<br>Next Water: '+escapeHtml(b.nextWater)+'<br>Type: '+escapeHtml(b.irrTypeMain)+'<br>Location: '+escapeHtml(b.location)+'<br>Water Source: '+escapeHtml(b.waterSource)+'<br>Variety: '+escapeHtml(b.variety)+'<br>Total Hours: '+escapeHtml(String(b.totalHours))+'h<br>Cycle: '+escapeHtml(String(b.cycleDays))+' days'+(b.instructions?'<br>Notes: '+escapeHtml(b.instructions):'');
 
   if(hasSession||savedSession){
     if(startMs) startLiveTimer(startMs);
