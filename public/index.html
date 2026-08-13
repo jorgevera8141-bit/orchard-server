@@ -516,7 +516,7 @@ function openBlock(idx){
   var dot=getDotColor(getStatus(b.alert));
   var hasSession=b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0;
   var savedSession=getPersistedSession(b.name);
-  var startMs=savedSession?savedSession.startMs:(hasSession?Date.now():null);
+  var startMs=savedSession?savedSession.startMs:(hasSession&&b.sessionStart?new Date(b.sessionStart).getTime():null);
 
   document.getElementById('ov-name').textContent=b.name;
   document.getElementById('ov-name-irr').textContent=b.name;
