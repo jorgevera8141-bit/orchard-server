@@ -137,12 +137,14 @@ app.post('/api/sessions/end', async (req, res) => {
     const finishTime = end_time ? new Date(end_time) : new Date();
 
     // Auto-calculate sets and official hours from real elapsed time
+    // Use session_id when available to close exactly one record — avoids closing unrelated sessions (e.g. Foggers) on same block
+    const whereClause = session_id ? 'id=$1' : 'block_name=$2 AND session_type=\'Irrigation\'';
     const result = await pool.query(
-      "UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE (id=$1 OR block_name=$2) AND status='open' RETURNING hours, sets, official_hours, block_name, session_type",
+      `UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE (${whereClause}) AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`,
       [session_id || 0, block_name, endTempF, finishTime.toISOString()]
     );
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
-    const row = result.rows[0];
+    const row = result.rows[0]; // Always one row now — ID match is exact
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
       // Update last_watered and next_water using Pacific date — avoids UTC drift

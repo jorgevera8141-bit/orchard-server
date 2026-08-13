@@ -627,7 +627,9 @@ function confirmEnd(blockName) {
   var endTimeVal = timeInput ? timeInput.value : getLocalISOString(new Date());
   var modal = document.getElementById('end-time-modal');
   if(modal) modal.remove();
-  var body = { block_name: blockName, end_time: endTimeVal };
+  var b = allBlocks.find(function(bl){ return bl.name === blockName; });
+  var sessionId = b && b.openRecordId && b.openRecordId !== 'null' ? b.openRecordId : null;
+  var body = { block_name: blockName, end_time: endTimeVal, session_id: sessionId };
   fetch('/api/sessions/end', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
     .then(function(r){ return r.json(); })
     .then(function(data){
