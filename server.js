@@ -22,6 +22,7 @@ async function initDB() {
       variety TEXT,
       cycle_days INTEGER DEFAULT 6,
       instructions TEXT,
+      block_notes TEXT,
       total_hours NUMERIC DEFAULT 0,
       last_watered TIMESTAMP,
       next_water DATE,
@@ -45,16 +46,56 @@ async function initDB() {
       notes TEXT,
       status TEXT DEFAULT 'open',
       temp_f NUMERIC,
+      date DATE,
       created_at TIMESTAMP DEFAULT NOW()
     );
-    -- Add missing columns to existing tables (safe to run multiple times)
+    CREATE TABLE IF NOT EXISTS orchard_shifts (
+      id SERIAL PRIMARY KEY,
+      operator TEXT,
+      activity TEXT,
+      block_name TEXT,
+      clock_in TIMESTAMP DEFAULT NOW(),
+      clock_out TIMESTAMP,
+      total_hours NUMERIC,
+      notes TEXT,
+      status TEXT DEFAULT 'active',
+      date DATE,
+      location TEXT,
+      variety TEXT,
+      day_start_time TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS orchard_workers (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      pin TEXT UNIQUE NOT NULL,
+      role TEXT DEFAULT 'Worker',
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS orchard_fuel (
+      id SERIAL PRIMARY KEY,
+      log_date DATE,
+      vehicle TEXT,
+      fuel_type TEXT,
+      gallons NUMERIC,
+      operator TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    -- Safe column additions for existing deployments
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS sets INTEGER;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS official_hours NUMERIC;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_product TEXT;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_gallons NUMERIC;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS fertilizer_notes TEXT;
     ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS temp_f NUMERIC;
+    ALTER TABLE orchard_sessions ADD COLUMN IF NOT EXISTS date DATE;
     ALTER TABLE orchard_blocks ADD COLUMN IF NOT EXISTS block_notes TEXT;
+    ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS date DATE;
+    ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS location TEXT;
+    ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS variety TEXT;
+    ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS day_start_time TIMESTAMP;
   `);
   console.log('Database ready');
 }
