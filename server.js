@@ -457,23 +457,33 @@ app.get('/api/shifts/active', async (req, res) => {
 // ── WEEKLY HOURS ──
 app.get('/api/shifts/weekly', async (req, res) => {
   try {
-    // Get start of current week (Sunday to Saturday — Pacific time)
-    // Use Pacific time offset: UTC-7 (PDT) in summer
+    // Get start of current week (Sunday) in Pacific time — handles DST automatically
     const nowUTC = new Date();
-    const pacificOffset = -7 * 60; // PDT = UTC-7
-    const nowPacific = new Date(nowUTC.getTime() + pacificOffset * 60000);
-    const dayOfWeek = nowPacific.getUTCDay(); // 0=Sunday
+    // Use Intl to get current Pacific date parts (handles PST/PDT automatically)
+    const pacificParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      weekday: 'short'
+    }).formatToParts(nowUTC);
+    const pYear = pacificParts.find(p=>p.type==='year').value;
+    const pMonth = pacificParts.find(p=>p.type==='month').value;
+    const pDay = pacificParts.find(p=>p.type==='day').value;
+    const pWeekday = pacificParts.find(p=>p.type==='weekday').value;
+    const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const dayOfWeek = weekdays.indexOf(pWeekday);
+
+    // Build Sunday midnight Pacific as ISO string
+    const pacificNow = new Date(`${pYear}-${pMonth}-${pDay}T00:00:00`);
+    pacificNow.setDate(pacificNow.getDate() - dayOfWeek);
+    // Convert Pacific midnight to UTC by using the timezone offset dynamically
+    const weekStartPacificStr = `${pacificNow.getFullYear()}-${String(pacificNow.getMonth()+1).padStart(2,'0')}-${String(pacificNow.getDate()).padStart(2,'0')}T00:00:00`;
+    const weekStart = new Date(new Date(weekStartPacificStr).toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+    // Get UTC equivalent
+    const tzOffset = nowUTC.getTime() - new Date(nowUTC.toLocaleString('en-US',{timeZone:'America/Los_Angeles'})).getTime();
+    const weekStartUTC = new Date(new Date(weekStartPacificStr).getTime() + tzOffset);
     
-    // Start of week = Sunday Pacific midnight
-    const weekStartPacific = new Date(nowPacific);
-    weekStartPacific.setUTCDate(nowPacific.getUTCDate() - dayOfWeek);
-    weekStartPacific.setUTCHours(0,0,0,0);
-    
-    // Convert back to UTC for database query
-    const weekStart = new Date(weekStartPacific.getTime() - pacificOffset * 60000);
-    
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekEnd = new Date(weekStartUTC);
+    weekEnd.setDate(weekStartUTC.getDate() + 6);
     weekEnd.setUTCHours(23,59,59,999);
 
     const result = await pool.query(
@@ -869,9 +879,10 @@ initDB().then(() => {
   // Check every hour — fire at 5am Pacific (UTC-7 = 12:00 UTC)
   setInterval(async () => {
     const now = new Date();
-    const hourUTC = now.getUTCHours();
-    const minUTC = now.getUTCMinutes();
-    if(hourUTC === 11 && minUTC < 60) { // 4am Pacific = 11:00 UTC
+    const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
+      timeZone:'America/Los_Angeles', hour:'numeric', hour12:false
+    }).format(now));
+    if(pacificHour === 4) {
       await sendMorningWaterAlerts();
     }
   }, 60 * 60 * 1000); // every hour
