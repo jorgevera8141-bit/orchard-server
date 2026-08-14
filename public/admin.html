@@ -597,27 +597,24 @@ function renderTableRows(){
     return list.slice(0,max).map(function(s){
       var typeBadge = s.session_type==='Irrigation'?'badge-irrigation':s.session_type==='Fertilizer'?'badge-fertilizer':'badge-foggers';
       var statusBadge = s.status==='open'?'badge-open':'badge-completed';
-      return '<tr>'+
-        '<td>'+escapeHtml(s.block_name)+'</td>'+
+      var rowStyle = 'cursor:pointer;' + (s.status==='open'?'background:rgba(255,204,0,0.04)':'');
+      return '<tr style="'+rowStyle+'" onclick="openEdit('+s.id+')" title="Tap to edit">'+
+        '<td style="font-weight:700;font-size:12px">'+escapeHtml(s.block_name)+'</td>'+
         '<td><span class="badge '+typeBadge+'">'+s.session_type+'</span></td>'+
-        '<td>'+escapeHtml(s.irr_type||'—')+'</td>'+
-        '<td>'+formatDate(s.start_time)+'</td>'+
-        '<td>'+formatDate(s.finish_time)+'</td>'+
-        '<td>'+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'—')+'</td>'+
-        '<td>'+(s.temp_f?s.temp_f+'°F':'—')+'</td>'+
+        '<td style="font-size:11px">'+escapeHtml(s.irr_type||'—')+'</td>'+
+        '<td style="font-size:11px">'+formatDate(s.start_time)+'</td>'+
+        '<td style="font-size:11px">'+(s.finish_time?formatDate(s.finish_time):'<span style="color:#ffcc00">▶ Open</span>')+'</td>'+
+        '<td style="color:#69BE28;font-weight:700">'+(s.hours?parseFloat(s.hours).toFixed(1)+'h':'—')+'</td>'+
+        '<td style="font-size:11px">'+(s.temp_f?s.temp_f+'°F':'—')+'</td>'+
         '<td><span class="badge '+statusBadge+'">'+s.status+'</span></td>'+
-        '<td>'+escapeHtml(s.notes||'—')+'</td>'+
-        '<td style="white-space:nowrap">'+
-        '<button onclick="openEdit('+s.id+')" style="background:none;border:1px solid #69BE28;border-radius:6px;padding:3px 8px;color:#69BE28;font-size:10px;cursor:pointer;margin-right:4px">Edit</button>'+
-        '<button onclick="deleteSession('+s.id+')" style="background:none;border:1px solid #ff4444;border-radius:6px;padding:3px 8px;color:#ff4444;font-size:10px;cursor:pointer">Del</button>'+
-        '</td>'+
+        '<td style="font-size:11px">'+escapeHtml(s.notes||'—')+'</td>'+
         '</tr>';
     }).join('');
   }
 
   var irrShown = Math.min(_shownCount, irr.length);
   var fertShown = fert.length;
-  var html = '<table><thead><tr><th>Block</th><th>Type</th><th>Irr Type</th><th>Start</th><th>Finish</th><th>Hours</th><th>Temp</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>';
+  var html = '<table><thead><tr><th>Block</th><th>Type</th><th>Irr Type</th><th>Start</th><th>Finish</th><th>Hours</th><th>Temp</th><th>Status</th><th>Notes</th></tr></thead><tbody>';
   html += makeRows(irr, _shownCount);
   if(irr.length > _shownCount){
     html += '</tbody></table>';
@@ -695,6 +692,7 @@ function editSession(s){
     +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Temperature (°F)</div>'
     +'<input id="e-temp" type="number" value="'+(s.temp_f||'')+'" placeholder="e.g. 82" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
     +'<button onclick="submitEdit('+s.id+')" style="background:#69BE28;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Save Changes</button>'
+    +'<button onclick="deleteSession('+s.id+');document.getElementById(\'edit-modal\').remove()" style="background:none;border:1px solid #ff4444;color:#ff4444;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-top:8px">Delete Record</button>'
     +'</div></div>';
   document.body.appendChild(modal);
 }
