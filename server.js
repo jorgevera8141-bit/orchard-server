@@ -29,7 +29,7 @@ function generateToken(){ return crypto.randomBytes(32).toString('hex'); }
 // Sessions stored in PostgreSQL — survive server restarts
 async function createSession(worker){
   const token = generateToken();
-  const expires = new Date(Date.now() + 12 * 60 * 60 * 1000);
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
   await pool.query(
     'INSERT INTO orchard_auth_sessions (token, worker_id, worker_name, role, expires_at) VALUES ($1,$2,$3,$4,$5)',
     [token, worker.id, worker.name, worker.role, expires]
@@ -53,6 +53,9 @@ async function requireAuth(req, res, next){
     const session = await getSession(token);
     if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
     req.worker = session;
+    // Renew session on each request — keep alive as long as user is active
+    const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    pool.query('UPDATE orchard_auth_sessions SET expires_at=$1 WHERE token=$2', [newExpires, token]).catch(()=>{});
     next();
   } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 }

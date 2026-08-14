@@ -362,17 +362,12 @@ function escapeHtml(s){
 function formatDate(str){
   if(!str) return '—';
   try{
-    var s=String(str);
-    var datePart = s.includes('T') ? s.split('T')[0] : s.split(' ')[0];
-    var timePart = s.includes('T') ? s.split('T')[1] : s.split(' ')[1];
-    var dp = datePart.split('-');
-    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var dateStr = months[parseInt(dp[1])-1]+' '+parseInt(dp[2]);
-    if(!timePart) return dateStr;
-    var tp = timePart.split(':');
-    var h=parseInt(tp[0]); var m=tp[1];
-    var ampm=h>=12?'PM':'AM'; h=h%12||12;
-    return dateStr+' '+h+':'+m+' '+ampm;
+    var s=String(str).trim();
+    if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z';
+    var d=new Date(s);
+    if(isNaN(d)) return str;
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'})+
+           ' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
   }catch(e){return str;}
 }
 function showActive(){
@@ -849,16 +844,12 @@ try { adminWorker = JSON.parse(localStorage.getItem('orchard_worker')); } catch(
 function fmtTime(ts){
   if(!ts) return '—';
   try{
-    var s=String(ts);
-    // Extract time part directly — timestamps stored as local Pacific time
-    var timePart = s.includes('T') ? s.split('T')[1] : s.split(' ')[1];
-    if(!timePart) return '—';
-    var parts = timePart.split(':');
-    var h = parseInt(parts[0]);
-    var m = parts[1];
-    var ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return h+':'+m+' '+ampm;
+    var s=String(ts).trim();
+    // All new records stored as UTC — append Z and convert to Pacific
+    if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z';
+    var d=new Date(s);
+    if(isNaN(d)) return '—';
+    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
   }catch(e){return '—';}
 }
 

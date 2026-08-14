@@ -386,17 +386,12 @@ var activeBlock = null;
 function formatDate(str){
   if(!str) return '—';
   try{
-    var s=String(str);
-    var datePart=s.includes('T')?s.split('T')[0]:s.split(' ')[0];
-    var timePart=s.includes('T')?s.split('T')[1]:s.split(' ')[1];
-    var dp=datePart.split('-');
-    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var dateStr=months[parseInt(dp[1])-1]+' '+parseInt(dp[2]);
-    if(!timePart) return dateStr;
-    var tp=timePart.split(':');
-    var h=parseInt(tp[0]);var m=tp[1];
-    var ampm=h>=12?'PM':'AM';h=h%12||12;
-    return dateStr+' '+h+':'+m+' '+ampm;
+    var s=String(str).trim();
+    if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z';
+    var d=new Date(s);
+    if(isNaN(d)) return str;
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'})+
+           ' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
   }catch(e){return str;}
 }
 
@@ -899,7 +894,7 @@ function showWeeklyHours(){
 function showEntryDetail(entry){
   var detail=document.createElement('div');
   detail.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;height:100%;background:rgba(0,0,0,0.92);z-index:400;display:flex;align-items:center;justify-content:center;';
-  var fT=function(s){if(!s)return '--';try{var st=String(s);var tp=(st.includes('T')?st.split('T')[1]:st.split(' ')[1])||'';var p=tp.split(':');var h=parseInt(p[0]);var m=p[1]||'00';var ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap;}catch(e){return '--';}};
+  var fT=function(s){if(!s)return '--';try{var st=String(s).trim();if(!st.endsWith('Z')&&!st.includes('+'))st=st.replace(' ','T')+'Z';var d=new Date(st);if(isNaN(d))return '--';return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});}catch(e){return '--';}};
   var html='<div style="background:#001428;border:1px solid #69BE28;border-radius:16px;padding:24px;width:90%;max-height:80vh;overflow-y:auto">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:white;font-size:15px;font-weight:700">'+entry.weekday+' - '+entry.date+'</span><button onclick="this.parentElement.parentElement.parentElement.remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">X</button></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">'
