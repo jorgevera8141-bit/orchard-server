@@ -858,8 +858,9 @@ function loadToday(){
       }
       var totalReal = 0;
       var totalOfficial = 0;
-      var html = '<table><thead><tr>'
-        +'<th>Block</th><th>Type</th><th>Start</th><th>End</th><th>Real h</th><th>Sets</th><th>Official h</th><th>Status</th>'
+      function fmtTime(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'}); }
+      var html = '<div style="overflow-x:auto"><table style="min-width:500px"><thead><tr>'
+        +'<th>Block</th><th>Start</th><th>End</th><th>Real h</th><th>Sets</th><th>Status</th>'
         +'</tr></thead><tbody>';
       sessions.forEach(function(s){
         var real = s.hours ? parseFloat(s.hours).toFixed(1) : '—';
@@ -867,24 +868,20 @@ function loadToday(){
         var official = s.official_hours ? parseFloat(s.official_hours).toFixed(0) : '—';
         var statusColor = s.status === 'open' ? '#ffcc00' : '#69BE28';
         var rowBg = s.status === 'open' ? 'background:rgba(255,204,0,0.05)' : '';
-        // Flag anomalies
-        var flag = '';
-        if(s.status === 'open') flag = '🟡 ';
+        var flag = s.status === 'open' ? '🟡 ' : '';
         if(s.hours && parseFloat(s.hours) < 0.1) flag = '⚠️ ';
         if(totalReal += s.hours ? parseFloat(s.hours) : 0);
         if(totalOfficial += s.official_hours ? parseFloat(s.official_hours) : 0);
         html += '<tr style="'+rowBg+'">'
-          +'<td style="font-weight:700">'+flag+s.block_name+'</td>'
-          +'<td>'+s.irr_type+'</td>'
-          +'<td style="font-family:monospace;font-size:11px">'+formatDate(s.start_time)+'</td>'
-          +'<td style="font-family:monospace;font-size:11px">'+(s.finish_time?formatDate(s.finish_time):'<span style="color:#ffcc00">Running</span>')+'</td>'
-          +'<td style="color:#69BE28;font-weight:700">'+real+'</td>'
+          +'<td style="font-weight:700;font-size:12px">'+flag+s.block_name+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+fmtTime(s.start_time)+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+(s.finish_time?fmtTime(s.finish_time):'<span style="color:#ffcc00">▶</span>')+'</td>'
+          +'<td style="color:#69BE28;font-weight:700">'+real+'h</td>'
           +'<td style="color:#c8d4e0">'+sets+'</td>'
-          +'<td style="color:#ffcc00;font-weight:700">'+official+'</td>'
           +'<td style="color:'+statusColor+';font-size:11px">'+s.status+'</td>'
           +'</tr>';
       });
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
       html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px">'
         +'<div class="total-card"><div class="total-num">'+sessions.length+'</div><div class="total-label">Sessions</div></div>'
         +'<div class="total-card"><div class="total-num" style="color:#69BE28">'+totalReal.toFixed(1)+'h</div><div class="total-label">Real Hours</div></div>'
@@ -903,22 +900,22 @@ function loadToday(){
         return;
       }
       var totalHours = shifts.reduce(function(sum,s){ return sum+(parseFloat(s.total_hours)||0); },0);
-      var html = '<table><thead><tr>'
-        +'<th>Operator</th><th>Activity</th><th>Block</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th>'
+      var html = '<div style="overflow-x:auto"><table style="min-width:480px"><thead><tr>'
+        +'<th>Operator</th><th>Activity</th><th>Block</th><th>In</th><th>Out</th><th>Hours</th>'
         +'</tr></thead><tbody>';
       shifts.forEach(function(s){
         var statusColor = s.status === 'active' ? '#ffcc00' : '#69BE28';
-        html += '<tr>'
-          +'<td style="font-weight:700">'+s.operator+'</td>'
-          +'<td>'+s.activity+'</td>'
-          +'<td>'+(s.block_name||'—')+'</td>'
-          +'<td style="font-family:monospace;font-size:11px">'+formatDate(s.clock_in)+'</td>'
-          +'<td style="font-family:monospace;font-size:11px">'+(s.clock_out?formatDate(s.clock_out):'<span style="color:#ffcc00">Active</span>')+'</td>'
+        var active = s.status === 'active';
+        html += '<tr style="'+(active?'background:rgba(255,204,0,0.05)':'')+'">' 
+          +'<td style="font-weight:700;font-size:12px">'+(active?'🟡 ':'')+s.operator+'</td>'
+          +'<td style="font-size:12px">'+s.activity+'</td>'
+          +'<td style="font-size:12px">'+(s.block_name||'—')+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+fmtTime(s.clock_in)+'</td>'
+          +'<td style="font-family:monospace;font-size:11px">'+(s.clock_out?fmtTime(s.clock_out):'<span style="color:#ffcc00">▶</span>')+'</td>'
           +'<td style="color:#69BE28;font-weight:700">'+(s.total_hours?parseFloat(s.total_hours).toFixed(2)+'h':'—')+'</td>'
-          +'<td style="color:'+statusColor+';font-size:11px">'+s.status+'</td>'
           +'</tr>';
       });
-      html += '</tbody></table>';
+      html += '</tbody></table></div>';
       html += '<div style="margin-top:12px;padding:12px;background:#002244;border-radius:8px;display:flex;justify-content:space-between">'
         +'<span style="color:#aaa;font-size:12px">Total hours today</span>'
         +'<span style="color:#69BE28;font-weight:700;font-size:16px">'+totalHours.toFixed(2)+'h</span>'
