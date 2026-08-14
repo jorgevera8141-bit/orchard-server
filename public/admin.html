@@ -362,7 +362,8 @@ function escapeHtml(s){
 function formatDate(str){
   if(!str) return '—';
   try{
-    var d = new Date(str);
+    var s=String(str); if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z';
+    var d = new Date(s);
     return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/Los_Angeles'})+
            ' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'});
   }catch(e){return str;}
@@ -858,7 +859,7 @@ function loadToday(){
       }
       var totalReal = 0;
       var totalOfficial = 0;
-      function fmtTime(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'}); }
+      function fmtTime(ts){ if(!ts) return '—'; var s=String(ts); if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z'; var d=new Date(s); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'}); }
       var html = '<div style="overflow-x:auto"><table style="min-width:500px"><thead><tr>'
         +'<th>Block</th><th>Start</th><th>End</th><th>Real h</th><th>Sets</th><th>Status</th>'
         +'</tr></thead><tbody>';
