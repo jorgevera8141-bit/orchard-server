@@ -475,11 +475,11 @@ function renderFuelTable(logs){
   logs.forEach(function(l){
     html += '<tr>'
       +'<td>'+formatDate(l.log_date)+'</td>'
-      +'<td>'+l.vehicle+'</td>'
-      +'<td>'+l.fuel_type+'</td>'
+      +'<td>'+escapeHtml(l.vehicle)+'</td>'
+      +'<td>'+escapeHtml(l.fuel_type)+'</td>'
       +'<td style="font-weight:700;color:#69BE28">'+parseFloat(l.gallons).toFixed(1)+'</td>'
-      +'<td>'+l.operator+'</td>'
-      +'<td>'+(l.notes||'—')+'</td>'
+      +'<td>'+escapeHtml(l.operator)+'</td>'
+      +'<td>'+escapeHtml(l.notes||'—')+'</td>'
       +'</tr>';
   });
   html += '</tbody></table>';

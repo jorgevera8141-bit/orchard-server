@@ -259,7 +259,7 @@ function flushRetryQueue() {
   if(!navigator.onLine || !retryQueue.length) return;
   var now = Date.now();
   retryQueue.filter(function(item) { return item.nextRetryAt <= now; }).forEach(function(item) {
-    fetch(item.endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item.body) })
+    authFetch(item.endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item.body) })
       .then(function(r) {
         if(r.ok) { retryQueue = retryQueue.filter(function(q) { return q !== item; }); }
         else { bumpRetry(item); }
@@ -670,7 +670,7 @@ function logAction(type){
   }
   else if(type==='Foggers'){endpoint='/api/sessions/foggers';}
   if(!endpoint) return;
-  fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  authFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();})
     .then(function(data){
       if(data.success){closeOverlay();loadBlocks();}
@@ -1051,7 +1051,7 @@ function editSessionFromHistory(idx){
   saveBtn.textContent='Save';
   saveBtn.style.cssText='background:#69BE28;color:#002244;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:8px';
   saveBtn.onclick=function(){
-    fetch('/api/admin/sessions/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    authFetch('/api/admin/sessions/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       id:s.id,block_name:s.block_name,session_type:s.session_type,irr_type:s.irr_type,
       notes:s.notes,status:s.status,start_time:startInput.value||null,finish_time:endInput.value||null
     })}).then(r=>r.json()).then(function(data){

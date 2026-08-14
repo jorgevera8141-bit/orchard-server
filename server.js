@@ -132,6 +132,7 @@ async function initDB() {
       name TEXT NOT NULL,
       pin TEXT UNIQUE NOT NULL,
       role TEXT DEFAULT 'Worker',
+      greeting TEXT DEFAULT 'Hello',
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     );
@@ -143,6 +144,14 @@ async function initDB() {
       gallons NUMERIC,
       operator TEXT,
       notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS orchard_auth_sessions (
+      token TEXT PRIMARY KEY,
+      worker_id INTEGER,
+      worker_name TEXT,
+      role TEXT,
+      expires_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
     );
     -- Safe column additions for existing deployments
@@ -158,6 +167,7 @@ async function initDB() {
     ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS location TEXT;
     ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS variety TEXT;
     ALTER TABLE orchard_shifts ADD COLUMN IF NOT EXISTS day_start_time TIMESTAMP;
+    ALTER TABLE orchard_workers ADD COLUMN IF NOT EXISTS greeting TEXT DEFAULT 'Hello';
   `);
   console.log('Database ready');
 }
@@ -176,7 +186,7 @@ app.get('/api/blocks', async (req, res) => {
   }
 });
 
-app.post('/api/blocks/instructions', async (req, res) => {
+app.post('/api/blocks/instructions', requireAuth, async (req, res) => {
   try {
     const { block_name, instructions } = req.body;
     await pool.query('UPDATE orchard_blocks SET instructions=$1 WHERE name=$2', [instructions, block_name]);
@@ -288,7 +298,7 @@ app.post('/api/sessions/fertilizer', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/sessions/foggers', async (req, res) => {
+app.post('/api/sessions/foggers', requireAuth, async (req, res) => {
   try {
     const { block_name, notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
@@ -472,19 +482,17 @@ app.get('/api/shifts/weekly', async (req, res) => {
     const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const dayOfWeek = weekdays.indexOf(pWeekday);
 
-    // Build Sunday midnight Pacific as ISO string
-    const pacificNow = new Date(`${pYear}-${pMonth}-${pDay}T00:00:00`);
-    pacificNow.setDate(pacificNow.getDate() - dayOfWeek);
-    // Convert Pacific midnight to UTC by using the timezone offset dynamically
-    const weekStartPacificStr = `${pacificNow.getFullYear()}-${String(pacificNow.getMonth()+1).padStart(2,'0')}-${String(pacificNow.getDate()).padStart(2,'0')}T00:00:00`;
-    const weekStart = new Date(new Date(weekStartPacificStr).toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
-    // Get UTC equivalent
-    const tzOffset = nowUTC.getTime() - new Date(nowUTC.toLocaleString('en-US',{timeZone:'America/Los_Angeles'})).getTime();
-    const weekStartUTC = new Date(new Date(weekStartPacificStr).getTime() + tzOffset);
-    
-    const weekEnd = new Date(weekStartUTC);
-    weekEnd.setDate(weekStartUTC.getDate() + 6);
-    weekEnd.setUTCHours(23,59,59,999);
+    // Pacific-UTC offset right now — handles PST/PDT automatically
+    const tzOffset = nowUTC.getTime() - new Date(nowUTC.toLocaleString('en-US', {timeZone:'America/Los_Angeles'})).getTime();
+
+    // Sunday midnight Pacific (this week), as a UTC instant
+    const pacificSunday = new Date(`${pYear}-${pMonth}-${pDay}T00:00:00`);
+    pacificSunday.setDate(pacificSunday.getDate() - dayOfWeek);
+    const weekStartPacificStr = `${pacificSunday.getFullYear()}-${String(pacificSunday.getMonth()+1).padStart(2,'0')}-${String(pacificSunday.getDate()).padStart(2,'0')}T00:00:00`;
+    const weekStart = new Date(new Date(weekStartPacificStr).getTime() + tzOffset);
+
+    // End of Saturday Pacific — 7 days after weekStart, minus 1ms
+    const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
 
     const result = await pool.query(
       `SELECT s.*, b.location 
@@ -509,7 +517,7 @@ app.get('/api/shifts/weekly', async (req, res) => {
       byDay[d].push(s);
     });
 
-    var weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var weekdayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var entries = Object.keys(byDay).map(function(date){
       var dayShifts = byDay[date];
       var firstIn = new Date(dayShifts[0].clock_in);
@@ -525,7 +533,7 @@ app.get('/api/shifts/weekly', async (req, res) => {
 
       return {
         date: date,
-        weekday: weekdays[new Date(date).getDay()],
+        weekday: weekdayNames[new Date(date).getDay()],
         first_in: firstIn.toISOString(),
         last_out: lastOut ? lastOut.toISOString() : null,
         day_hours: parseFloat(dayHours.toFixed(2)),
@@ -536,8 +544,8 @@ app.get('/api/shifts/weekly', async (req, res) => {
 
     res.json({
       success: true,
-      week_start: weekStart.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'}),
-      week_end: weekEnd.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'}),
+      week_start: weekStart.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit',timeZone:'America/Los_Angeles'}),
+      week_end: weekEnd.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit',timeZone:'America/Los_Angeles'}),
       total_hours: parseFloat(totalHours.toFixed(2)),
       limit: 39,
       remaining: parseFloat((39 - totalHours).toFixed(2)),
@@ -548,7 +556,7 @@ app.get('/api/shifts/weekly', async (req, res) => {
   }
 });
 // ── EDIT SHIFT ──
-app.post('/api/shifts/edit', async (req, res) => {
+app.post('/api/shifts/edit', requireAuth, async (req, res) => {
   try {
     const { id, activity, block_name, clock_in, clock_out, location, variety, day_start_time } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Shift ID required' });
@@ -731,7 +739,7 @@ app.get('/api/admin/fuel', async (req, res) => {
   }
 });
 // ── SWITCH IRRIGATION TYPE ──
-app.post('/api/sessions/switch-type', async (req, res) => {
+app.post('/api/sessions/switch-type', requireAuth, async (req, res) => {
   try {
     const { block_name, irr_type } = req.body;
     if(!block_name || !irr_type){
