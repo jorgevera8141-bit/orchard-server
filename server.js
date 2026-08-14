@@ -212,7 +212,7 @@ app.post('/api/sessions/start', requireAuth, async (req, res) => {
       [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF, sessionDate]
     );
     if (session_type !== 'Foggers') {
-      await pool.query('UPDATE orchard_blocks SET last_watered=NOW() WHERE name=$1', [block_name]);
+      // last_watered and next_water are updated when session ENDS, not on start
     }
     res.json({ success: true, session_id: session.rows[0].id, temp_f: tempF });
   } catch(e) {
@@ -237,12 +237,15 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     const finishTime = end_time ? new Date(end_time) : new Date();
 
     // Auto-calculate sets and official hours from real elapsed time
-    // Use session_id when available to close exactly one record — avoids closing unrelated sessions (e.g. Foggers) on same block
-    const whereClause = session_id ? 'id=$1' : 'block_name=$2 AND session_type=\'Irrigation\'';
-    const result = await pool.query(
-      `UPDATE orchard_sessions SET status='completed', finish_time=$4, hours=EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($4::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE (${whereClause}) AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`,
-      [session_id || 0, block_name, endTempF, finishTime.toISOString()]
-    );
+    let queryParams, querySQL;
+    if(session_id){
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      queryParams = [session_id, finishTime.toISOString(), endTempF];
+    } else {
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      queryParams = [block_name, endTempF, finishTime.toISOString()];
+    }
+    const result = await pool.query(querySQL, queryParams);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
     const row = result.rows[0]; // Always one row now — ID match is exact
     if (row.session_type !== 'Foggers') {
