@@ -1,9 +1,24 @@
+// This app's water-alert / next-water-date math (updateWaterAlerts, session-end,
+// admin session edit/delete) relies on DATE columns and local Date methods that
+// are only correct if the Node process's own local timezone is Pacific. That was
+// never declared anywhere — it just happened to be true, and the moment it isn't
+// (a container rebuild, a platform default change) every date in this app goes
+// wrong the same way clock-in times just did. Pin it explicitly.
+process.env.TZ = 'America/Los_Angeles';
+
 const express = require('express');
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 require('dotenv').config();
+
+// Our schema stores TIMESTAMP (no time zone) columns as UTC wall-clock values
+// (DB session timezone is UTC, so NOW() strips to the UTC wall clock). By default
+// node-postgres parses those naive strings using the Node process's own local
+// timezone instead of UTC, silently shifting every stored time by that offset.
+// Force UTC interpretation so this is correct regardless of the host's TZ.
+types.setTypeParser(1114, str => new Date(str.replace(' ', 'T') + 'Z'));
 
 const app = express();
 
