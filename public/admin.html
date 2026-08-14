@@ -839,6 +839,8 @@ function editWorker(id, name, role, greeting){
 var adminWorker = null;
 try { adminWorker = JSON.parse(localStorage.getItem('orchard_worker')); } catch(e){}
 
+function fmtTime(ts){ if(!ts) return '—'; var s=String(ts); if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z'; var d=new Date(s); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'}); }
+
 function loadToday(){
   var now = new Date();
   var pacificDate = now.toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -859,7 +861,6 @@ function loadToday(){
       }
       var totalReal = 0;
       var totalOfficial = 0;
-      function fmtTime(ts){ if(!ts) return '—'; var s=String(ts); if(!s.endsWith('Z')&&!s.includes('+')) s=s.replace(' ','T')+'Z'; var d=new Date(s); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/Los_Angeles'}); }
       var html = '<div style="overflow-x:auto"><table style="min-width:500px"><thead><tr>'
         +'<th>Block</th><th>Start</th><th>End</th><th>Real h</th><th>Sets</th><th>Status</th>'
         +'</tr></thead><tbody>';
