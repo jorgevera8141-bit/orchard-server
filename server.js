@@ -25,42 +25,47 @@ app.use(express.json());
 app.use(express.static(require('path').join(__dirname, 'public')));
 
 // ── SESSION STORE (in-memory, 12-hour TTL) ──
-const sessions = new Map();
 function generateToken(){ return crypto.randomBytes(32).toString('hex'); }
-function createSession(worker){
+// Sessions stored in PostgreSQL — survive server restarts
+async function createSession(worker){
   const token = generateToken();
-  sessions.set(token, { ...worker, expires: Date.now() + 12 * 60 * 60 * 1000 });
+  const expires = new Date(Date.now() + 12 * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO orchard_auth_sessions (token, worker_id, worker_name, role, expires_at) VALUES ($1,$2,$3,$4,$5)',
+    [token, worker.id, worker.name, worker.role, expires]
+  );
   return token;
 }
-function getSession(token){
+async function getSession(token){
   if(!token) return null;
-  const s = sessions.get(token);
-  if(!s) return null;
-  if(Date.now() > s.expires){ sessions.delete(token); return null; }
-  return s;
+  const result = await pool.query(
+    'SELECT worker_id, worker_name, role FROM orchard_auth_sessions WHERE token=$1 AND expires_at > NOW()',
+    [token]
+  );
+  if(!result.rows.length) return null;
+  return { id: result.rows[0].worker_id, name: result.rows[0].worker_name, role: result.rows[0].role };
 }
-// Clean expired sessions every hour
-setInterval(() => {
-  const now = Date.now();
-  for(const [k,v] of sessions.entries()) if(now > v.expires) sessions.delete(k);
-}, 60 * 60 * 1000);
 
 // ── AUTH MIDDLEWARE ──
-function requireAuth(req, res, next){
-  const token = (req.headers.authorization||'').replace('Bearer ','');
-  const session = getSession(token);
-  if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
-  req.worker = session;
-  next();
+async function requireAuth(req, res, next){
+  try {
+    const token = (req.headers.authorization||'').replace('Bearer ','');
+    const session = await getSession(token);
+    if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
+    req.worker = session;
+    next();
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 }
-function requireAdmin(req, res, next){
-  const token = (req.headers.authorization||'').replace('Bearer ','');
-  const session = getSession(token);
-  if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
-  if(!['Supervisor','Boss','Crew Lead'].includes(session.role))
-    return res.status(403).json({ success: false, message: 'Admin access required' });
-  req.worker = session;
-  next();
+async function requireAdmin(req, res, next){
+  try {
+    const token = (req.headers.authorization||'').replace('Bearer ','');
+    const session = await getSession(token);
+    if(!session) return res.status(401).json({ success: false, message: 'Not authenticated' });
+    if(!['Supervisor','Boss','Crew Lead'].includes(session.role))
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    req.worker = session;
+    next();
+  } catch(e) { res.status(500).json({ success: false, message: e.message }); }
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -591,7 +596,7 @@ app.post('/api/workers/login', async (req, res) => {
     );
     if(!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid PIN' });
     const worker = result.rows[0];
-    const token = createSession(worker);
+    const token = await createSession(worker);
     res.json({ success: true, worker, token });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
