@@ -348,9 +348,40 @@ app.get('/api/admin/sessions', async (req, res) => {
 app.get('/api/admin/blocks', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT name, location, irr_type, water_source, variety, cycle_days, total_hours, last_watered, next_water, water_alert FROM orchard_blocks ORDER BY name'
+      'SELECT id, name, location, irr_type, water_source, variety, cycle_days, instructions, total_hours, last_watered, next_water, water_alert FROM orchard_blocks ORDER BY name'
     );
     res.json({ success: true, blocks: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/admin/blocks/add', requireAdmin, async (req, res) => {
+  try {
+    const { name, location, irr_type, water_source, variety, cycle_days, instructions } = req.body;
+    if(!name || !name.trim()) return res.status(400).json({ success: false, message: 'Block name required' });
+    const result = await pool.query(
+      'INSERT INTO orchard_blocks (name, location, irr_type, water_source, variety, cycle_days, instructions) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [name.trim(), location || null, irr_type || null, water_source || null, variety || null, cycle_days ? parseInt(cycle_days) : 6, instructions || null]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch(e) {
+    if(e.code === '23505') return res.status(409).json({ success: false, message: 'A block with that name already exists' });
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Block name is immutable here — sessions/shifts/fuel reference blocks by name (text),
+// so renaming would orphan historical records. Only the descriptive fields are editable.
+app.post('/api/admin/blocks/edit', requireAdmin, async (req, res) => {
+  try {
+    const { id, location, irr_type, water_source, variety, cycle_days, instructions } = req.body;
+    if(!id) return res.status(400).json({ success: false, message: 'Block ID required' });
+    await pool.query(
+      'UPDATE orchard_blocks SET location=$1, irr_type=$2, water_source=$3, variety=$4, cycle_days=$5, instructions=$6 WHERE id=$7',
+      [location || null, irr_type || null, water_source || null, variety || null, cycle_days ? parseInt(cycle_days) : 6, instructions || null, id]
+    );
+    res.json({ success: true });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
