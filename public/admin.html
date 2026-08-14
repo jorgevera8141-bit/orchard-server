@@ -890,8 +890,8 @@ function loadToday(){
       document.getElementById('today-body').innerHTML = html;
     });
 
-  // Load today's shifts
-  fetch('/api/admin/shifts?from='+from+'&to='+to+'T23:59:59')
+  // Load today's shifts — filter by date column (Pacific date, not clock_in UTC timestamp)
+  fetch('/api/admin/shifts?date='+from)
     .then(r=>r.json())
     .then(function(data){
       var shifts = data.shifts || [];

@@ -561,10 +561,11 @@ app.post('/api/shifts/edit', async (req, res) => {
 // ── ADMIN SHIFTS ──
 app.get('/api/admin/shifts', async (req, res) => {
   try {
-    const { operator, activity, status, from, to } = req.query;
+    const { operator, activity, status, from, to, date } = req.query;
     let query = 'SELECT s.*, b.location FROM orchard_shifts s LEFT JOIN orchard_blocks b ON b.name = s.block_name WHERE 1=1';
     let params = [];
     let i = 1;
+    if(date){ query += ` AND s.date=$${i++}`; params.push(date); }
     if(operator){ query += ` AND s.operator ILIKE $${i++}`; params.push('%'+operator+'%'); }
     if(activity){ query += ` AND s.activity=$${i++}`; params.push(activity); }
     if(status){ query += ` AND s.status=$${i++}`; params.push(status); }
