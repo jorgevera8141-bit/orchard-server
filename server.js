@@ -343,7 +343,7 @@ app.get('/api/admin/sessions', async (req, res) => {
     if(from){ query += ` AND start_time>=$${i++}`; params.push(from); }
     if(to){ query += ` AND start_time<=$${i++}`; params.push(to); }
 
-    query += ' ORDER BY start_time DESC LIMIT 500';
+    query += ' ORDER BY start_time DESC NULLS LAST LIMIT 500';
 
     const result = await pool.query(query, params);
 
