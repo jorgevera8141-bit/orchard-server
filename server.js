@@ -912,8 +912,8 @@ initDB().then(() => {
       const soon = result.rows.filter(b => b.water_alert === '🟡 Soon');
 
       let message = '';
-      if(due.length) message += '🛑 DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
-      if(soon.length) message += '🟡 COMING UP: ' + soon.map(b => b.name).join(', ');
+      if(due.length) message += 'DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
+      if(soon.length) message += 'COMING UP: ' + soon.map(b => b.name).join(', ');
 
       await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
         method: 'POST',
