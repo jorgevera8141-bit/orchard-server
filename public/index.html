@@ -377,6 +377,7 @@ if(currentWorker){
 function logout(){
   if(!confirm('Log out?')) return;
   localStorage.removeItem('orchard_worker');
+  localStorage.removeItem('orchard_token');
   window.location.href = '/login.html';
 }
 
@@ -456,7 +457,16 @@ function authFetch(url, options){
   options.headers = options.headers || {};
   var token = localStorage.getItem('orchard_token');
   if(token) options.headers['Authorization'] = 'Bearer ' + token;
-  return fetch(url, options);
+  return fetch(url, options).then(function(r){
+    // Stale/expired/missing token — clear it and force a fresh login instead
+    // of leaving the user stuck on a generic "Not authenticated" error.
+    if(r.status === 401){
+      localStorage.removeItem('orchard_worker');
+      localStorage.removeItem('orchard_token');
+      window.location.href = '/login.html';
+    }
+    return r;
+  });
 }
 
 function getStatus(alert){ if((alert||'').includes('🛑')) return 'due'; if((alert||'').includes('🟡')) return 'soon'; return 'ok'; }

@@ -145,15 +145,22 @@
 <script>
 var pin = '';
 
-// Check if already logged in
+// Check if already logged in — a worker WITHOUT a token means a stale session
+// from before token auth existed (or an old logout that missed clearing it);
+// without a token every write silently fails with "Not authenticated", so
+// require both before skipping straight into the app.
 var saved = localStorage.getItem('orchard_worker');
-if(saved){
+var savedToken = localStorage.getItem('orchard_token');
+if(saved && savedToken){
   try{
     var w = JSON.parse(saved);
     window.location.href = '/index.html';
   }catch(e){
     localStorage.removeItem('orchard_worker');
+    localStorage.removeItem('orchard_token');
   }
+} else if(saved && !savedToken){
+  localStorage.removeItem('orchard_worker');
 }
 
 function addPin(digit){
