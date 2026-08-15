@@ -410,6 +410,36 @@ function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// UTC ISO timestamp -> 'YYYY-MM-DDTHH:MM' for a datetime-local input, shown in Pacific.
+// (Previously this just sliced the raw UTC string, showing UTC digits labeled as local.)
+function toLocalInput(ts) {
+  if(!ts) return '';
+  var d = new Date(ts);
+  if(isNaN(d)) return '';
+  var parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(d);
+  var get = function(t){ return parts.find(function(p){ return p.type === t; }).value; };
+  var hh = get('hour'); if(hh === '24') hh = '00';
+  return get('year')+'-'+get('month')+'-'+get('day')+'T'+hh+':'+get('minute');
+}
+// A datetime-local input's value (Pacific wall-clock) -> a UTC ISO string.
+function fromLocalInput(str) {
+  if(!str) return null;
+  var m = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if(!m) return null;
+  var guessMs = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0);
+  var parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(new Date(guessMs));
+  var get = function(t){ return parts.find(function(p){ return p.type === t; }).value; };
+  var gotHour = get('hour') === '24' ? 0 : +get('hour');
+  var gotMs = Date.UTC(+get('year'), +get('month')-1, +get('day'), gotHour, +get('minute'), +get('second'));
+  return new Date(guessMs + (guessMs - gotMs)).toISOString();
+}
+
 function formatDate(str){
   if(!str) return '—';
   try{
@@ -791,9 +821,9 @@ function editSession(s){
     +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Notes</div>'
     +'<input id="e-notes" value="'+escapeHtml(s.notes||'')+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
     +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Start Time</div>'
-    +'<input id="e-start" type="datetime-local" value="'+(s.start_time?s.start_time.slice(0,16):'')+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    +'<input id="e-start" type="datetime-local" value="'+toLocalInput(s.start_time)+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
     +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Finish Time</div>'
-    +'<input id="e-finish" type="datetime-local" value="'+(s.finish_time?s.finish_time.slice(0,16):'')+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
+    +'<input id="e-finish" type="datetime-local" value="'+toLocalInput(s.finish_time)+'" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
     +'<div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Temperature (°F)</div>'
     +'<input id="e-temp" type="number" value="'+(s.temp_f||'')+'" placeholder="e.g. 82" style="width:100%;background:#002244;border:1px solid rgba(105,190,40,0.3);border-radius:8px;padding:8px 12px;color:white;font-size:13px;outline:none"></div>'
     +'<button onclick="submitEdit('+s.id+')" style="background:#69BE28;color:#002244;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:4px">Save Changes</button>'
@@ -812,7 +842,10 @@ function submitEdit(id){
       session_type:document.getElementById('e-type').value,
       irr_type:document.getElementById('e-irr').value,
       status:document.getElementById('e-status').value,
-      notes:document.getElementById('e-notes').value
+      notes:document.getElementById('e-notes').value,
+      start_time:fromLocalInput(document.getElementById('e-start').value),
+      finish_time:fromLocalInput(document.getElementById('e-finish').value),
+      temp_f:document.getElementById('e-temp').value||null
     })
   }).then(r=>r.json()).then(function(data){
     if(data.success){
