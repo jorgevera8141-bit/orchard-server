@@ -267,10 +267,10 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     // Auto-calculate sets and official hours from real elapsed time
     let queryParams, querySQL;
     if(session_id){
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
       queryParams = [session_id, finishTime.toISOString(), endTempF];
     } else {
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
       queryParams = [block_name, endTempF, finishTime.toISOString()];
     }
     const result = await pool.query(querySQL, queryParams);
