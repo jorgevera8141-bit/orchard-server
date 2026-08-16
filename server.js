@@ -918,7 +918,7 @@ initDB().then(() => {
       await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
         method: 'POST',
         headers: {
-          'Title': `Orchard Water Alerts — ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
+          'Title': `Orchard Water Alerts - ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
           'Priority': due.length ? 'high' : 'default',
           'Tags': 'droplet'
         },
@@ -930,7 +930,7 @@ initDB().then(() => {
     }
   }
 
-  // Check every hour — fire at 5am Pacific (UTC-7 = 12:00 UTC)
+  // Check every hour — fire at 4am Pacific
   setInterval(async () => {
     const now = new Date();
     const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
