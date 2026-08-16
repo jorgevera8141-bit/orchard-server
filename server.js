@@ -904,7 +904,14 @@ initDB().then(() => {
   async function sendMorningWaterAlerts(){
     try {
       const result = await pool.query(
-        "SELECT name, next_water, water_alert FROM orchard_blocks WHERE water_alert='🛑 Due' OR water_alert='🟡 Soon' ORDER BY next_water"
+        `SELECT b.name, b.next_water, b.water_alert 
+         FROM orchard_blocks b
+         WHERE (b.water_alert='🛑 Due' OR b.water_alert='🟡 Soon')
+         AND NOT EXISTS (
+           SELECT 1 FROM orchard_sessions s 
+           WHERE s.block_name = b.name AND s.status = 'open'
+         )
+         ORDER BY b.next_water`
       );
       if(!result.rows.length) return;
 
