@@ -937,12 +937,18 @@ initDB().then(() => {
     }
   }
 
-  // Check every hour — fire at 4am Pacific
+  // Check every hour — fire at 4am Pacific for notifications, midnight Pacific to refresh alerts
   setInterval(async () => {
     const now = new Date();
     const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
       timeZone:'America/Los_Angeles', hour:'numeric', hour12:false
     }).format(now));
+    // Refresh water alerts at midnight Pacific so dots are accurate all day
+    if(pacificHour === 0) {
+      await updateWaterAlerts();
+      console.log('Midnight water alert refresh done');
+    }
+    // Send morning notification at 4am
     if(pacificHour === 4) {
       await sendMorningWaterAlerts();
     }
