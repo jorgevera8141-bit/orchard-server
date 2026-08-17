@@ -151,6 +151,17 @@ async function initDB() {
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS orchard_fertilizer (
+      id SERIAL PRIMARY KEY,
+      block_id INTEGER REFERENCES orchard_blocks(id),
+      block_name TEXT NOT NULL,
+      fertilizer_product TEXT,
+      fertilizer_gallons NUMERIC,
+      fertilizer_notes TEXT,
+      temp_f INTEGER,
+      date DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS orchard_fuel (
       id SERIAL PRIMARY KEY,
       log_date DATE,
@@ -303,11 +314,31 @@ app.post('/api/sessions/fertilizer', requireAuth, async (req, res) => {
     const { block_name, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
     if (!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
+    const sessionDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    // Write to dedicated fertilizer table — separated from irrigation sessions
     await pool.query(
-      "INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes, status, finish_time, hours) VALUES ($1,$2,'Fertilizer','Fertilizer',$3,$4,$5,$6,'completed',NOW(),0)",
-      [block.rows[0].id, block_name, notes || '', fertilizer_product || null, fertilizer_gallons || null, fertilizer_notes || null]
+      'INSERT INTO orchard_fertilizer (block_id, block_name, fertilizer_product, fertilizer_gallons, fertilizer_notes, date) VALUES ($1,$2,$3,$4,$5,$6)',
+      [block.rows[0].id, block_name, fertilizer_product || null, fertilizer_gallons || null, fertilizer_notes || notes || null, sessionDate]
     );
     res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ── GET FERTILIZER RECORDS ──
+app.get('/api/fertilizer', requireAuth, async (req, res) => {
+  try {
+    const { block_name, from, to } = req.query;
+    let query = 'SELECT * FROM orchard_fertilizer WHERE 1=1';
+    const params = [];
+    let i = 1;
+    if(block_name){ query += ` AND block_name=$${i++}`; params.push(block_name); }
+    if(from){ query += ` AND date>=$${i++}`; params.push(from); }
+    if(to){ query += ` AND date<=$${i++}`; params.push(to); }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    res.json({ success: true, records: result.rows });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
