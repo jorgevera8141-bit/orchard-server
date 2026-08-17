@@ -779,7 +779,7 @@ async function updateWaterAlerts(){
     todayPacific.setHours(0,0,0,0);
 
     for(const block of blocks.rows){
-      const nextWaterMidnight = new Date(block.next_water);
+      const nextWaterMidnight = new Date(block.next_water + 'T12:00:00'); // noon UTC avoids timezone date shift
       nextWaterMidnight.setHours(0,0,0,0);
       const daysUntil = Math.floor((nextWaterMidnight - todayPacific) / (1000*60*60*24));
 
