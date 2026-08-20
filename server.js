@@ -202,6 +202,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/api/blocks', async (req, res) => {
   try {
+    // Refresh water alerts on every block load — ensures accuracy even if midnight timer missed
+    updateWaterAlerts().catch(e => console.error('Water alert refresh error:', e.message));
     const result = await pool.query(
       'SELECT b.*, s.id as open_session_id, s.irr_type as active_irr_type, s.start_time as session_start FROM orchard_blocks b LEFT JOIN orchard_sessions s ON s.block_name = b.name AND s.status = $1 ORDER BY b.name',
       ['open']
