@@ -291,17 +291,58 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     const row = result.rows[0]; // Always one row now — ID match is exact
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
-      // Update last_watered and next_water using Pacific date — avoids UTC drift
-      const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-      const lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [row.block_name]);
+
+      // Get water source for this block
+      const blockData = await pool.query('SELECT cycle_days, water_source FROM orchard_blocks WHERE name=$1', [row.block_name]);
       if(blockData.rows.length) {
         const cycleDays = blockData.rows[0].cycle_days || 6;
-        const nextWater = new Date(pacificDate);
-        nextWater.setDate(pacificDate.getDate() + cycleDays);
-        const nextWaterDate = nextWater.toLocaleDateString('en-CA');
-        await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
-          [lastWateredDate, nextWaterDate, row.block_name]);
+        const waterSource = blockData.rows[0].water_source;
+
+        // For shared-pump sources (Box 24 and Box 25 Pump/both), use earliest session start
+        // in the current cycle across all blocks sharing the same water source
+        const sharedSources = ['Box 24', 'Box 25 (Pump)', 'Box 25 (Pump & Gravity)'];
+        let lastWateredDate;
+
+        if(sharedSources.includes(waterSource)) {
+          // Find earliest start_time among all sessions from blocks sharing this water source
+          // within the last 30 days (to avoid pulling from prior cycles)
+          const earliestRes = await pool.query(`
+            SELECT MIN(s.start_time) as earliest_start
+            FROM orchard_sessions s
+            JOIN orchard_blocks b ON b.name = s.block_name
+            WHERE b.water_source = $1
+              AND s.session_type = 'Irrigation'
+              AND s.start_time > NOW() - INTERVAL '30 days'
+              AND (s.status = 'open' OR s.finish_time > NOW() - INTERVAL '30 days')
+          `, [waterSource]);
+
+          if(earliestRes.rows[0].earliest_start) {
+            const earliest = new Date(earliestRes.rows[0].earliest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            lastWateredDate = earliest.toLocaleDateString('en-CA');
+          } else {
+            const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+          }
+
+          // Update ALL blocks sharing this water source with the same last_watered
+          const nextWater = new Date(lastWateredDate + 'T12:00:00');
+          await pool.query(`
+            UPDATE orchard_blocks b
+            SET last_watered = $1,
+                next_water = (DATE $1 + (cycle_days || ' days')::INTERVAL)::DATE
+            WHERE water_source = $2
+          `, [lastWateredDate, waterSource]);
+
+        } else {
+          // Standard logic for blocks with independent water source
+          const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+          lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+          const nextWater = new Date(pacificDate);
+          nextWater.setDate(pacificDate.getDate() + cycleDays);
+          const nextWaterDate = nextWater.toLocaleDateString('en-CA');
+          await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
+            [lastWateredDate, nextWaterDate, row.block_name]);
+        }
       }
     }
     updateWaterAlerts();
