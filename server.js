@@ -200,6 +200,21 @@ async function initDB() {
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// ── EXTERNAL CRON TRIGGER — called by cron-job.org at 4am Pacific ──
+app.get('/api/cron/water-alerts', async (req, res) => {
+  const secret = req.query.secret;
+  if(secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
+  try {
+    await updateWaterAlerts();
+    await sendMorningWaterAlerts();
+    res.json({ success: true, message: 'Water alerts sent' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get('/api/blocks', async (req, res) => {
   try {
     // Refresh water alerts on every block load — ensures accuracy even if midnight timer missed
