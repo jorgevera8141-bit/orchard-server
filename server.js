@@ -312,6 +312,7 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
             JOIN orchard_blocks b ON b.name = s.block_name
             WHERE b.water_source = $1
               AND s.session_type = 'Irrigation'
+              AND s.irr_type IN ('Sprinkler r10', 'Drip')
               AND s.start_time > NOW() - INTERVAL '30 days'
               AND (s.status = 'open' OR s.finish_time > NOW() - INTERVAL '30 days')
           `, [waterSource]);
