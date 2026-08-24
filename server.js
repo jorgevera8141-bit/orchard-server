@@ -1018,7 +1018,14 @@ app.get('/api/cinthya/:tableName', async (req, res) => {
     const result = await pool.query(`SELECT * FROM ${cfg.table} ${orderBy} LIMIT 200`);
     const records = result.rows.map(r => ({
       id: String(r.id),
-      fields: Object.fromEntries(Object.entries(r).filter(([k])=>k!=='id'&&k!=='created_at').map(([k,v])=>[CINTHYA_REVERSE_MAP[k]||k, v]))
+      fields: Object.fromEntries(Object.entries(r).filter(([k])=>k!=='id'&&k!=='created_at').map(([k,v])=>{
+        // Format dates: "2026-08-24T07:00:00.000Z" → "2026-08-24"
+        if ((k==='fecha'||k==='proxima_cita') && v instanceof Date) v = v.toISOString().slice(0,10);
+        else if ((k==='fecha'||k==='proxima_cita') && typeof v==='string' && v.includes('T')) v = v.slice(0,10);
+        // Format times: "08:00:00" → "08:00"
+        if (k==='hora' && typeof v==='string' && v.length===8) v = v.slice(0,5);
+        return [CINTHYA_REVERSE_MAP[k]||k, v];
+      }))
     }));
     res.json({records});
   } catch(e) { res.status(500).json({error:e.message}); }
