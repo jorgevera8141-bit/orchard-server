@@ -984,6 +984,80 @@ app.post('/api/admin/sessions/edit', requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── CINTHYA HEALTH API ──
+const CINTHYA_TABLES = {
+  Glucosa:      { table: 'cinthya_glucosa',      cols: ['lectura','fecha','hora','contexto','notas'] },
+  Insulina:     { table: 'cinthya_insulina',     cols: ['unidades','fecha','hora','contexto','tipo','notas'] },
+  Medicamentos: { table: 'cinthya_medicamentos', cols: ['medicamento','dosis','frecuencia','horario','activo','prescrito_por'] },
+  Citas:        { table: 'cinthya_citas',        cols: ['doctor','especialidad','fecha','hora','lugar','proxima_cita','notas'] },
+  Tomas:        { table: 'cinthya_tomas',        cols: ['fecha','hora','medicamento','notas'] }
+};
+const CINTHYA_FIELD_MAP = {
+  'Lectura':'lectura','Fecha':'fecha','Hora':'hora','Contexto':'contexto','Notas':'notas',
+  'Unidades':'unidades','Tipo':'tipo','Medicamento':'medicamento','Dosis':'dosis',
+  'Frecuencia':'frecuencia','Horario':'horario','Activo':'activo',
+  'Prescrito Por':'prescrito_por','Doctor':'doctor','Especialidad':'especialidad',
+  'Lugar':'lugar','Próxima Cita':'proxima_cita'
+};
+
+app.get('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const result = await pool.query(`SELECT * FROM ${cfg.table} ORDER BY fecha DESC NULLS LAST, hora DESC NULLS LAST LIMIT 200`);
+    const records = result.rows.map(r => ({
+      id: String(r.id),
+      fields: Object.fromEntries(Object.entries(r).filter(([k])=>k!=='id'&&k!=='created_at'))
+    }));
+    res.json({records});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.post('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const fields = req.body.fields || req.body;
+    const mapped = {};
+    for (const [k,v] of Object.entries(fields)) {
+      const col = CINTHYA_FIELD_MAP[k] || k.toLowerCase().replace(/ /g,'_');
+      if (cfg.cols.includes(col)) mapped[col] = v;
+    }
+    const keys = Object.keys(mapped);
+    const vals = Object.values(mapped);
+    const ph = keys.map((_,i)=>'$'+(i+1)).join(',');
+    const result = await pool.query(`INSERT INTO ${cfg.table} (${keys.join(',')}) VALUES (${ph}) RETURNING *`, vals);
+    res.json({id: String(result.rows[0].id), fields: result.rows[0]});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.patch('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const {recordId, fields} = req.body;
+    const mapped = {};
+    for (const [k,v] of Object.entries(fields)) {
+      const col = CINTHYA_FIELD_MAP[k] || k.toLowerCase().replace(/ /g,'_');
+      if (cfg.cols.includes(col)) mapped[col] = v;
+    }
+    const keys = Object.keys(mapped);
+    const vals = Object.values(mapped);
+    const set = keys.map((k,i)=>`${k}=$${i+1}`).join(',');
+    await pool.query(`UPDATE ${cfg.table} SET ${set} WHERE id=$${keys.length+1}`, [...vals, recordId]);
+    res.json({success:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.delete('/api/cinthya/:tableName/:id', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    await pool.query(`DELETE FROM ${cfg.table} WHERE id=$1`, [req.params.id]);
+    res.json({success:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
 const PORT = process.env.PORT || 3001;
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
