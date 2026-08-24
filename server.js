@@ -1004,7 +1004,9 @@ app.get('/api/cinthya/:tableName', async (req, res) => {
   const cfg = CINTHYA_TABLES[req.params.tableName];
   if (!cfg) return res.status(400).json({error:'Unknown table'});
   try {
-    const result = await pool.query(`SELECT * FROM ${cfg.table} ORDER BY fecha DESC NULLS LAST, hora DESC NULLS LAST LIMIT 200`);
+    const hasDate = ['cinthya_glucosa','cinthya_insulina','cinthya_tomas','cinthya_citas'].includes(cfg.table);
+    const orderBy = hasDate ? 'ORDER BY fecha DESC NULLS LAST, hora DESC NULLS LAST' : 'ORDER BY id DESC';
+    const result = await pool.query(`SELECT * FROM ${cfg.table} ${orderBy} LIMIT 200`);
     const records = result.rows.map(r => ({
       id: String(r.id),
       fields: Object.fromEntries(Object.entries(r).filter(([k])=>k!=='id'&&k!=='created_at'))
