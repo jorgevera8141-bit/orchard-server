@@ -1022,8 +1022,15 @@ app.get('/api/cinthya/:tableName', async (req, res) => {
         // Format dates: "2026-08-24T07:00:00.000Z" → "2026-08-24"
         if ((k==='fecha'||k==='proxima_cita') && v instanceof Date) v = v.toISOString().slice(0,10);
         else if ((k==='fecha'||k==='proxima_cita') && typeof v==='string' && v.includes('T')) v = v.slice(0,10);
-        // Format times: "08:00:00" → "08:00"
-        if (k==='hora' && typeof v==='string' && v.length===8) v = v.slice(0,5);
+        // Format times: "08:00:00" → "8:00 AM" / "13:00:00" → "1:00 PM"
+        if (k==='hora' && typeof v==='string' && v.includes(':')) {
+          const parts = v.slice(0,5).split(':');
+          let h = parseInt(parts[0]), m = parts[1];
+          const mer = h >= 12 ? 'PM' : 'AM';
+          if (h === 0) h = 12;
+          else if (h > 12) h -= 12;
+          v = `${h}:${m} ${mer}`;
+        }
         return [CINTHYA_REVERSE_MAP[k]||k, v];
       }))
     }));
