@@ -1021,11 +1021,12 @@ app.post('/api/cinthya/:tableName', async (req, res) => {
   try {
     const fields = req.body.fields || req.body;
     const mapped = {};
-    for (const [k,v] of Object.entries(fields)) {
+    for (const [k, rawV] of Object.entries(fields)) {
       const col = CINTHYA_FIELD_MAP[k] || k.toLowerCase().replace(/ /g,'_');
       if (cfg.cols.includes(col)) {
+        let v = rawV;
         // Normalize "12:28 p.m." → "12:28:00" for PostgreSQL TIME
-        if (col === 'hora' && typeof v === 'string' && (v.includes('a.m.') || v.includes('p.m.') || v.includes('AM') || v.includes('PM'))) {
+        if (col === 'hora' && typeof v === 'string' && (v.includes('a.m.') || v.includes('p.m.') || v.toLowerCase().includes('am') || v.toLowerCase().includes('pm'))) {
           const m = v.replace(/\./g,'').match(/(\d+):(\d+)\s*(am|pm)/i);
           if (m) {
             let h = parseInt(m[1]), mn = m[2], mer = m[3].toUpperCase();
