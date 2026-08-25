@@ -1097,47 +1097,49 @@ app.delete('/api/cinthya/:tableName/:id', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+const NTFY_TOPIC = 'orchard-mcdougall';
+  async function sendMorningWaterAlerts(){
+  try {
+    const result = await pool.query(
+      `SELECT b.name, b.next_water, b.water_alert 
+       FROM orchard_blocks b
+       WHERE (b.water_alert='🛑 Due' OR b.water_alert='🟡 Soon')
+       AND NOT EXISTS (
+         SELECT 1 FROM orchard_sessions s 
+         WHERE s.block_name = b.name AND s.status = 'open'
+       )
+       ORDER BY b.next_water`
+    );
+    if(!result.rows.length) return;
+
+    const due = result.rows.filter(b => b.water_alert === '🛑 Due');
+    const soon = result.rows.filter(b => b.water_alert === '🟡 Soon');
+
+    let message = '';
+    if(due.length) message += 'DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
+    if(soon.length) message += 'COMING UP: ' + soon.map(b => b.name).join(', ');
+
+    await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+      method: 'POST',
+      headers: {
+        'Title': `Orchard Water Alerts - ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
+        'Priority': due.length ? 'high' : 'default',
+        'Tags': 'droplet'
+      },
+      body: message.trim()
+    });
+    console.log('Morning water alerts sent via ntfy');
+  } catch(e) {
+    console.error('ntfy alert error:', e.message);
+  }
+}
+
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
 
   // ── DAILY WATER ALERT NOTIFICATION ──
   // Runs every hour, fires ntfy at 5am Pacific
-  const NTFY_TOPIC = 'orchard-mcdougall';
-  async function sendMorningWaterAlerts(){
-    try {
-      const result = await pool.query(
-        `SELECT b.name, b.next_water, b.water_alert 
-         FROM orchard_blocks b
-         WHERE (b.water_alert='🛑 Due' OR b.water_alert='🟡 Soon')
-         AND NOT EXISTS (
-           SELECT 1 FROM orchard_sessions s 
-           WHERE s.block_name = b.name AND s.status = 'open'
-         )
-         ORDER BY b.next_water`
-      );
-      if(!result.rows.length) return;
-
-      const due = result.rows.filter(b => b.water_alert === '🛑 Due');
-      const soon = result.rows.filter(b => b.water_alert === '🟡 Soon');
-
-      let message = '';
-      if(due.length) message += 'DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
-      if(soon.length) message += 'COMING UP: ' + soon.map(b => b.name).join(', ');
-
-      await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-        method: 'POST',
-        headers: {
-          'Title': `Orchard Water Alerts - ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
-          'Priority': due.length ? 'high' : 'default',
-          'Tags': 'droplet'
-        },
-        body: message.trim()
-      });
-      console.log('Morning water alerts sent via ntfy');
-    } catch(e) {
-      console.error('ntfy alert error:', e.message);
-    }
-  }
+  sendMorningWaterAlerts();
 
   // Check every hour — fire at 4am Pacific for notifications, midnight Pacific to refresh alerts
   setInterval(async () => {
