@@ -548,6 +548,11 @@ async function loadBlocks(){
       var sb=b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0?0:b.alert.includes('🛑')?1:b.alert.includes('🟡')?2:3;
       return sa-sb;
     });
+    // Clear stale localStorage sessions for blocks with no open session in DB
+    allBlocks.forEach(function(b){
+      var noDbSession = !b.openRecordId || b.openRecordId === 'null' || b.openRecordId.length === 0;
+      if(noDbSession) clearPersistedSession(b.name);
+    });
     renderCards(allBlocks);
     window.dispatchEvent(new Event('blocksLoaded'));
   }catch(e){
@@ -560,10 +565,9 @@ function renderCards(blocks){
   if(!blocks.length){list.innerHTML='<div style="color:#4a8a28;text-align:center;padding:40px">No blocks found</div>';return;}
   list.innerHTML=blocks.map(function(b,i){
     var status=getStatus(b.alert);
-    var dot=getDotColor(status);
-    var side=i%2===0?'card-left':'card-right';
     var savedSession=getPersistedSession(b.name);
     var hasActive=(b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0)||savedSession;
+    var dot=hasActive?'#4488ff':getDotColor(status);    var side=i%2===0?'card-left':'card-right';
     return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:8px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:2px 7px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+escapeHtml(b.name)+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+escapeHtml(b.lastWatered)+'</div>'      +'<div class="card-sub">Next: '+escapeHtml(b.nextWater)+'</div>'      +'</div></div></div>';
   }).join('');
 }

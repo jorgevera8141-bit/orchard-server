@@ -152,6 +152,17 @@ async function initDB() {
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS orchard_fertilizer (
+      id SERIAL PRIMARY KEY,
+      block_id INTEGER REFERENCES orchard_blocks(id),
+      block_name TEXT NOT NULL,
+      fertilizer_product TEXT,
+      fertilizer_gallons NUMERIC,
+      fertilizer_notes TEXT,
+      temp_f INTEGER,
+      date DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS orchard_fuel (
       id SERIAL PRIMARY KEY,
       log_date DATE,
@@ -190,8 +201,25 @@ async function initDB() {
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// ── EXTERNAL CRON TRIGGER — called by cron-job.org at 4am Pacific ──
+app.get('/api/cron/water-alerts', async (req, res) => {
+  const secret = req.query.secret;
+  if(secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
+  try {
+    await updateWaterAlerts();
+    await sendMorningWaterAlerts();
+    res.json({ success: true, message: 'Water alerts sent' });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 app.get('/api/blocks', async (req, res) => {
   try {
+    // Refresh water alerts on every block load — ensures accuracy even if midnight timer missed
+    updateWaterAlerts().catch(e => console.error('Water alert refresh error:', e.message));
     const result = await pool.query(
       'SELECT b.*, s.id as open_session_id, s.irr_type as active_irr_type, s.start_time as session_start FROM orchard_blocks b LEFT JOIN orchard_sessions s ON s.block_name = b.name AND s.status = $1 ORDER BY b.name',
       ['open']
@@ -268,10 +296,10 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     // Auto-calculate sets and official hours from real elapsed time
     let queryParams, querySQL;
     if(session_id){
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
       queryParams = [session_id, finishTime.toISOString(), endTempF];
     } else {
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
       queryParams = [block_name, endTempF, finishTime.toISOString()];
     }
     const result = await pool.query(querySQL, queryParams);
@@ -279,17 +307,59 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     const row = result.rows[0]; // Always one row now — ID match is exact
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
-      // Update last_watered and next_water using Pacific date — avoids UTC drift
-      const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-      const lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [row.block_name]);
+
+      // Get water source for this block
+      const blockData = await pool.query('SELECT cycle_days, water_source FROM orchard_blocks WHERE name=$1', [row.block_name]);
       if(blockData.rows.length) {
         const cycleDays = blockData.rows[0].cycle_days || 6;
-        const nextWater = new Date(pacificDate);
-        nextWater.setDate(pacificDate.getDate() + cycleDays);
-        const nextWaterDate = nextWater.toLocaleDateString('en-CA');
-        await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
-          [lastWateredDate, nextWaterDate, row.block_name]);
+        const waterSource = blockData.rows[0].water_source;
+
+        // For shared-pump sources (Box 24 and Box 25 Pump/both), use earliest session start
+        // in the current cycle across all blocks sharing the same water source
+        const sharedSources = ['Box 24', 'Box 25 (Pump)', 'Box 25 (Pump & Gravity)'];
+        let lastWateredDate;
+
+        if(sharedSources.includes(waterSource)) {
+          // Find earliest start_time among all sessions from blocks sharing this water source
+          // within the last 30 days (to avoid pulling from prior cycles)
+          const earliestRes = await pool.query(`
+            SELECT MIN(s.start_time) as earliest_start
+            FROM orchard_sessions s
+            JOIN orchard_blocks b ON b.name = s.block_name
+            WHERE b.water_source = $1
+              AND s.session_type = 'Irrigation'
+              AND s.irr_type IN ('Sprinkler r10', 'Drip')
+              AND s.start_time > NOW() - INTERVAL '30 days'
+              AND (s.status = 'open' OR s.finish_time > NOW() - INTERVAL '30 days')
+          `, [waterSource]);
+
+          if(earliestRes.rows[0].earliest_start) {
+            const earliest = new Date(earliestRes.rows[0].earliest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            lastWateredDate = earliest.toLocaleDateString('en-CA');
+          } else {
+            const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+          }
+
+          // Update ALL blocks sharing this water source with the same last_watered
+          const nextWater = new Date(lastWateredDate + 'T12:00:00');
+          await pool.query(`
+            UPDATE orchard_blocks b
+            SET last_watered = $1,
+                next_water = (DATE $1 + (cycle_days || ' days')::INTERVAL)::DATE
+            WHERE water_source = $2
+          `, [lastWateredDate, waterSource]);
+
+        } else {
+          // Standard logic for blocks with independent water source
+          const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+          lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+          const nextWater = new Date(pacificDate);
+          nextWater.setDate(pacificDate.getDate() + cycleDays);
+          const nextWaterDate = nextWater.toLocaleDateString('en-CA');
+          await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
+            [lastWateredDate, nextWaterDate, row.block_name]);
+        }
       }
     }
     updateWaterAlerts();
@@ -304,11 +374,31 @@ app.post('/api/sessions/fertilizer', requireAuth, async (req, res) => {
     const { block_name, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes } = req.body;
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
     if (!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
+    const sessionDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    // Write to dedicated fertilizer table — separated from irrigation sessions
     await pool.query(
-      "INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, fertilizer_product, fertilizer_gallons, fertilizer_notes, status, finish_time, hours) VALUES ($1,$2,'Fertilizer','Fertilizer',$3,$4,$5,$6,'completed',NOW(),0)",
-      [block.rows[0].id, block_name, notes || '', fertilizer_product || null, fertilizer_gallons || null, fertilizer_notes || null]
+      'INSERT INTO orchard_fertilizer (block_id, block_name, fertilizer_product, fertilizer_gallons, fertilizer_notes, date) VALUES ($1,$2,$3,$4,$5,$6)',
+      [block.rows[0].id, block_name, fertilizer_product || null, fertilizer_gallons || null, fertilizer_notes || notes || null, sessionDate]
     );
     res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ── GET FERTILIZER RECORDS ──
+app.get('/api/fertilizer', requireAuth, async (req, res) => {
+  try {
+    const { block_name, from, to } = req.query;
+    let query = 'SELECT * FROM orchard_fertilizer WHERE 1=1';
+    const params = [];
+    let i = 1;
+    if(block_name){ query += ` AND block_name=$${i++}`; params.push(block_name); }
+    if(from){ query += ` AND date>=$${i++}`; params.push(from); }
+    if(to){ query += ` AND date<=$${i++}`; params.push(to); }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    res.json({ success: true, records: result.rows });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -768,8 +858,8 @@ async function updateWaterAlerts(){
     todayPacific.setHours(0,0,0,0);
 
     for(const block of blocks.rows){
-      const nextWaterMidnight = new Date(block.next_water);
-      nextWaterMidnight.setHours(0,0,0,0);
+      const nextWaterMidnight = new Date(block.next_water); // pg DATE column returns a Date object already at UTC midnight
+      nextWaterMidnight.setUTCHours(0,0,0,0);
       const daysUntil = Math.floor((nextWaterMidnight - todayPacific) / (1000*60*60*24));
 
       let alert = '✅ OK';
@@ -932,48 +1022,175 @@ app.post('/api/admin/sessions/edit', requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+// ── CINTHYA HEALTH API ──
+const CINTHYA_TABLES = {
+  Glucosa:      { table: 'cinthya_glucosa',      cols: ['lectura','fecha','hora','contexto','notas'] },
+  Insulina:     { table: 'cinthya_insulina',     cols: ['unidades','fecha','hora','contexto','tipo','notas'] },
+  Medicamentos: { table: 'cinthya_medicamentos', cols: ['medicamento','dosis','frecuencia','horario','activo','prescrito_por'] },
+  Citas:        { table: 'cinthya_citas',        cols: ['doctor','especialidad','fecha','hora','lugar','proxima_cita','notas'] },
+  Tomas:        { table: 'cinthya_tomas',        cols: ['fecha','hora','medicamento','notas'] }
+};
+const CINTHYA_FIELD_MAP = {
+  'Lectura':'lectura','Fecha':'fecha','Hora':'hora','Contexto':'contexto','Notas':'notas',
+  'Unidades':'unidades','Tipo':'tipo','Medicamento':'medicamento','Dosis':'dosis',
+  'Frecuencia':'frecuencia','Horario':'horario','Activo':'activo',
+  'Prescrito Por':'prescrito_por','Doctor':'doctor','Especialidad':'especialidad',
+  'Lugar':'lugar','Próxima Cita':'proxima_cita'
+};
+
+
+const CINTHYA_REVERSE_MAP = {
+  'lectura':'Lectura','fecha':'Fecha','hora':'Hora','contexto':'Contexto','notas':'Notas',
+  'unidades':'Unidades','tipo':'Tipo','medicamento':'Medicamento','dosis':'Dosis',
+  'frecuencia':'Frecuencia','horario':'Horario','activo':'Activo',
+  'prescrito_por':'Prescrito Por','doctor':'Doctor','especialidad':'Especialidad',
+  'lugar':'Lugar','proxima_cita':'Próxima Cita'
+};
+
+app.get('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const hasDate = ['cinthya_glucosa','cinthya_insulina','cinthya_tomas','cinthya_citas'].includes(cfg.table);
+    const orderBy = hasDate ? 'ORDER BY fecha DESC NULLS LAST, hora DESC NULLS LAST' : 'ORDER BY id DESC';
+    const result = await pool.query(`SELECT * FROM ${cfg.table} ${orderBy} LIMIT 200`);
+    const records = result.rows.map(r => ({
+      id: String(r.id),
+      fields: Object.fromEntries(Object.entries(r).filter(([k])=>k!=='id'&&k!=='created_at').map(([k,v])=>{
+        // Format dates: "2026-08-24T07:00:00.000Z" → "2026-08-24"
+        if ((k==='fecha'||k==='proxima_cita') && v instanceof Date) v = v.toISOString().slice(0,10);
+        else if ((k==='fecha'||k==='proxima_cita') && typeof v==='string' && v.includes('T')) v = v.slice(0,10);
+        // Format times: "08:00:00" → "8:00 AM" / "13:00:00" → "1:00 PM"
+        if (k==='hora' && typeof v==='string' && v.includes(':')) {
+          const parts = v.slice(0,5).split(':');
+          let h = parseInt(parts[0]), m = parts[1];
+          const mer = h >= 12 ? 'PM' : 'AM';
+          if (h === 0) h = 12;
+          else if (h > 12) h -= 12;
+          v = `${h}:${m} ${mer}`;
+        }
+        return [CINTHYA_REVERSE_MAP[k]||k, v];
+      }))
+    }));
+    res.json({records});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.post('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const fields = req.body.fields || req.body;
+    const mapped = {};
+    for (const [k, rawV] of Object.entries(fields)) {
+      const col = CINTHYA_FIELD_MAP[k] || k.toLowerCase().replace(/ /g,'_');
+      if (cfg.cols.includes(col)) {
+        let v = rawV;
+        // Normalize "12:28 p.m." → "12:28:00" for PostgreSQL TIME
+        if (col === 'hora' && typeof v === 'string' && (v.includes('a.m.') || v.includes('p.m.') || v.toLowerCase().includes('am') || v.toLowerCase().includes('pm'))) {
+          const m = v.replace(/\./g,'').match(/(\d+):(\d+)\s*(am|pm)/i);
+          if (m) {
+            let h = parseInt(m[1]), mn = m[2], mer = m[3].toUpperCase();
+            if (mer === 'PM' && h < 12) h += 12;
+            if (mer === 'AM' && h === 12) h = 0;
+            v = `${String(h).padStart(2,'0')}:${mn}:00`;
+          }
+        }
+        mapped[col] = v;
+      }
+    }
+    const keys = Object.keys(mapped);
+    const vals = Object.values(mapped);
+    const ph = keys.map((_,i)=>'$'+(i+1)).join(',');
+    const result = await pool.query(`INSERT INTO ${cfg.table} (${keys.join(',')}) VALUES (${ph}) RETURNING *`, vals);
+    res.json({id: String(result.rows[0].id), fields: result.rows[0]});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.patch('/api/cinthya/:tableName', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    const {recordId, fields} = req.body;
+    const mapped = {};
+    for (const [k,v] of Object.entries(fields)) {
+      const col = CINTHYA_FIELD_MAP[k] || k.toLowerCase().replace(/ /g,'_');
+      if (cfg.cols.includes(col)) mapped[col] = v;
+    }
+    const keys = Object.keys(mapped);
+    const vals = Object.values(mapped);
+    const set = keys.map((k,i)=>`${k}=$${i+1}`).join(',');
+    await pool.query(`UPDATE ${cfg.table} SET ${set} WHERE id=$${keys.length+1}`, [...vals, recordId]);
+    res.json({success:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.delete('/api/cinthya/:tableName/:id', async (req, res) => {
+  const cfg = CINTHYA_TABLES[req.params.tableName];
+  if (!cfg) return res.status(400).json({error:'Unknown table'});
+  try {
+    await pool.query(`DELETE FROM ${cfg.table} WHERE id=$1`, [req.params.id]);
+    res.json({success:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
 const PORT = process.env.PORT || 3001;
+const NTFY_TOPIC = 'orchard-mcdougall';
+  async function sendMorningWaterAlerts(){
+  try {
+    const result = await pool.query(
+      `SELECT b.name, b.next_water, b.water_alert 
+       FROM orchard_blocks b
+       WHERE (b.water_alert='🛑 Due' OR b.water_alert='🟡 Soon')
+       AND NOT EXISTS (
+         SELECT 1 FROM orchard_sessions s 
+         WHERE s.block_name = b.name AND s.status = 'open'
+       )
+       ORDER BY b.next_water`
+    );
+    if(!result.rows.length) return;
+
+    const due = result.rows.filter(b => b.water_alert === '🛑 Due');
+    const soon = result.rows.filter(b => b.water_alert === '🟡 Soon');
+
+    let message = '';
+    if(due.length) message += 'DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
+    if(soon.length) message += 'COMING UP: ' + soon.map(b => b.name).join(', ');
+
+    await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+      method: 'POST',
+      headers: {
+        'Title': `Orchard Water Alerts - ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
+        'Priority': due.length ? 'high' : 'default',
+        'Tags': 'droplet'
+      },
+      body: message.trim()
+    });
+    console.log('Morning water alerts sent via ntfy');
+  } catch(e) {
+    console.error('ntfy alert error:', e.message);
+  }
+}
+
 initDB().then(() => {
   app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
 
   // ── DAILY WATER ALERT NOTIFICATION ──
   // Runs every hour, fires ntfy at 5am Pacific
-  const NTFY_TOPIC = 'orchard-mcdougall';
-  async function sendMorningWaterAlerts(){
-    try {
-      const result = await pool.query(
-        "SELECT name, next_water, water_alert FROM orchard_blocks WHERE water_alert='🛑 Due' OR water_alert='🟡 Soon' ORDER BY next_water"
-      );
-      if(!result.rows.length) return;
+  sendMorningWaterAlerts();
 
-      const due = result.rows.filter(b => b.water_alert === '🛑 Due');
-      const soon = result.rows.filter(b => b.water_alert === '🟡 Soon');
-
-      let message = '';
-      if(due.length) message += 'DUE NOW: ' + due.map(b => b.name).join(', ') + '\n';
-      if(soon.length) message += 'COMING UP: ' + soon.map(b => b.name).join(', ');
-
-      await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-        method: 'POST',
-        headers: {
-          'Title': `Orchard Water Alerts — ${new Date().toLocaleDateString('en-US',{timeZone:'America/Los_Angeles',month:'short',day:'numeric'})}`,
-          'Priority': due.length ? 'high' : 'default',
-          'Tags': 'droplet'
-        },
-        body: message.trim()
-      });
-      console.log('Morning water alerts sent via ntfy');
-    } catch(e) {
-      console.error('ntfy alert error:', e.message);
-    }
-  }
-
-  // Check every hour — fire at 5am Pacific (UTC-7 = 12:00 UTC)
+  // Check every hour — fire at 4am Pacific for notifications, midnight Pacific to refresh alerts
   setInterval(async () => {
     const now = new Date();
     const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
       timeZone:'America/Los_Angeles', hour:'numeric', hour12:false
     }).format(now));
+    // Refresh water alerts at midnight Pacific so dots are accurate all day
+    if(pacificHour === 0) {
+      await updateWaterAlerts();
+      console.log('Midnight water alert refresh done');
+    }
+    // Send morning notification at 4am
     if(pacificHour === 4) {
       await sendMorningWaterAlerts();
     }
