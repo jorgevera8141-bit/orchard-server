@@ -11,7 +11,7 @@ const { Pool, types } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 // Our schema stores TIMESTAMP (no time zone) columns as UTC wall-clock values
 // (DB session timezone is UTC, so NOW() strips to the UTC wall clock). By default
@@ -21,6 +21,7 @@ require('dotenv').config();
 types.setTypeParser(1114, str => new Date(str.replace(' ', 'T') + 'Z'));
 
 const app = express();
+app.set('trust proxy', 1); // behind Railway's proxy — needed for req.ip to reflect the real client
 
 // ── CORS — only allow our own origins ──
 const ALLOWED_ORIGINS = [
@@ -328,7 +329,7 @@ app.post('/api/sessions/foggers', requireAuth, async (req, res) => {
   }
 });
 // ── ADMIN SESSIONS ──
-app.get('/api/admin/sessions', async (req, res) => {
+app.get('/api/admin/sessions', requireAdmin, async (req, res) => {
   try {
     const { block, type, irr_type, status, from, to } = req.query;
     
@@ -360,7 +361,7 @@ app.get('/api/admin/sessions', async (req, res) => {
 });
 
 // ── ADMIN BLOCKS SUMMARY ──
-app.get('/api/admin/blocks', async (req, res) => {
+app.get('/api/admin/blocks', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, name, location, irr_type, water_source, variety, cycle_days, instructions, total_hours, last_watered, next_water, water_alert FROM orchard_blocks ORDER BY name'
@@ -619,7 +620,7 @@ app.post('/api/shifts/edit', requireAuth, async (req, res) => {
     const date = clock_in ? new Date(clock_in).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }) : null;
 
     await pool.query(
-      'UPDATE orchard_shifts SET activity=$1, block_name=$2, clock_in=$3, clock_out=$4, total_hours=$5, status=$6, location=$7, variety=$8, day_start_time=$9, date=$10 WHERE id=$11',
+      'UPDATE orchard_shifts SET activity=$1, block_name=$2, clock_in=$3, clock_out=$4, total_hours=$5, status=$6, location=$7, variety=$8, day_start_time=$9, date=COALESCE($10,date) WHERE id=$11',
       [activity, block_name || '', clock_in, clock_out || null, totalHours, status, location || '', variety || '', day_start_time || null, date, id]
     );
     res.json({ success: true });
@@ -629,7 +630,7 @@ app.post('/api/shifts/edit', requireAuth, async (req, res) => {
 });
 
 // ── ADMIN SHIFTS ──
-app.get('/api/admin/shifts', async (req, res) => {
+app.get('/api/admin/shifts', requireAdmin, async (req, res) => {
   try {
     const { operator, activity, status, from, to, date } = req.query;
     let query = 'SELECT s.*, b.location FROM orchard_shifts s LEFT JOIN orchard_blocks b ON b.name = s.block_name WHERE 1=1';
@@ -658,14 +659,33 @@ app.get('/api/workers', async (req, res) => {
   }
 });
 
+// In-memory PIN brute-force guard, keyed by client IP
+const loginAttempts = new Map();
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
 app.post('/api/workers/login', async (req, res) => {
   try {
+    const ip = req.ip;
+    const now = Date.now();
+    const attempt = loginAttempts.get(ip);
+    if(attempt && attempt.count >= LOGIN_MAX_ATTEMPTS && now - attempt.firstAttempt < LOGIN_WINDOW_MS){
+      return res.status(429).json({ success: false, message: 'Too many attempts. Try again in a few minutes.' });
+    }
     const { pin } = req.body;
     const result = await pool.query(
       'SELECT id, name, role, greeting FROM orchard_workers WHERE pin=$1 AND active=TRUE',
       [pin]
     );
-    if(!result.rows.length) return res.status(401).json({ success: false, message: 'Invalid PIN' });
+    if(!result.rows.length) {
+      if(!attempt || now - attempt.firstAttempt >= LOGIN_WINDOW_MS){
+        loginAttempts.set(ip, { count: 1, firstAttempt: now });
+      } else {
+        attempt.count++;
+      }
+      return res.status(401).json({ success: false, message: 'Invalid PIN' });
+    }
+    loginAttempts.delete(ip);
     const worker = result.rows[0];
     const token = await createSession(worker);
     res.json({ success: true, worker, token });
@@ -767,7 +787,7 @@ async function updateWaterAlerts(){
   }
 }
 // ── ADMIN FUEL ──
-app.get('/api/admin/fuel', async (req, res) => {
+app.get('/api/admin/fuel', requireAdmin, async (req, res) => {
   try {
     const { vehicle, fuel_type, from, to } = req.query;
     let query = 'SELECT * FROM orchard_fuel WHERE 1=1';
@@ -864,18 +884,35 @@ app.post('/api/admin/sessions/edit', requireAdmin, async (req, res) => {
   try {
     const { id, block_name, session_type, irr_type, notes, status, start_time, finish_time, temp_f } = req.body;
     if(!id) return res.status(400).json({ success: false, message: 'Session ID required' });
+
+    const prev = await pool.query('SELECT block_name, session_type FROM orchard_sessions WHERE id=$1', [id]);
+    if(!prev.rows.length) return res.status(404).json({ success: false, message: 'Session not found' });
+    const oldBlockName = prev.rows[0].block_name;
+    const oldSessionType = prev.rows[0].session_type;
+
     await pool.query(
-      'UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5, start_time=COALESCE($6,start_time), finish_time=COALESCE($7,finish_time), temp_f=COALESCE($8,temp_f) WHERE id=$9',
+      `UPDATE orchard_sessions SET block_name=$1, session_type=$2, irr_type=$3, notes=$4, status=$5,
+         start_time=COALESCE($6,start_time), finish_time=COALESCE($7,finish_time), temp_f=COALESCE($8,temp_f),
+         hours = CASE WHEN COALESCE($7,finish_time) IS NOT NULL AND COALESCE($6,start_time) IS NOT NULL
+                      THEN EXTRACT(EPOCH FROM (COALESCE($7,finish_time) - COALESCE($6,start_time)))/3600
+                      ELSE hours END
+       WHERE id=$9`,
       [block_name, session_type, irr_type, notes || '', status, start_time||null, finish_time||null, temp_f||null, id]
     );
-    // Recalculate block totals if this was an irrigation session
-    if(session_type === 'Irrigation') {
+
+    // Recalculate totals for every block/type combo this edit could have affected —
+    // the block it used to belong to, and the one it belongs to now
+    const affectedBlocks = new Set();
+    if(oldSessionType === 'Irrigation') affectedBlocks.add(oldBlockName);
+    if(session_type === 'Irrigation') affectedBlocks.add(block_name);
+
+    for(const bn of affectedBlocks){
       const totals = await pool.query(
         "SELECT COALESCE(SUM(hours),0) as total_hours, MAX(finish_time) as last_watered FROM orchard_sessions WHERE block_name=$1 AND status='completed' AND session_type='Irrigation'",
-        [block_name]
+        [bn]
       );
       const t = totals.rows[0];
-      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [block_name]);
+      const blockData = await pool.query('SELECT cycle_days FROM orchard_blocks WHERE name=$1', [bn]);
       const cycleDays = blockData.rows.length ? (blockData.rows[0].cycle_days || 6) : 6;
       let nextWater = null;
       if(t.last_watered) {
@@ -885,10 +922,11 @@ app.post('/api/admin/sessions/edit', requireAdmin, async (req, res) => {
       }
       await pool.query(
         'UPDATE orchard_blocks SET total_hours=$1, last_watered=$2, next_water=$3 WHERE name=$4',
-        [parseFloat(t.total_hours), t.last_watered, nextWater, block_name]
+        [parseFloat(t.total_hours), t.last_watered, nextWater, bn]
       );
-      updateWaterAlerts();
     }
+    if(affectedBlocks.size) updateWaterAlerts();
+
     res.json({ success: true });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
