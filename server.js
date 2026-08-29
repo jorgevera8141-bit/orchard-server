@@ -242,7 +242,8 @@ app.post('/api/blocks/instructions', requireAuth, async (req, res) => {
 
 app.post('/api/sessions/start', requireAuth, async (req, res) => {
   try {
-    const { block_name, session_type, irr_type, notes } = req.body;
+    const { block_name, session_type, irr_type, notes, start_time } = req.body;
+    const sessionStartTime = start_time ? new Date(start_time) : new Date();
     const block = await pool.query('SELECT id FROM orchard_blocks WHERE name=$1', [block_name]);
     if (!block.rows.length) return res.status(404).json({ success: false, message: 'Block not found' });
     // Don't close irrigation session if starting Foggers
@@ -263,10 +264,10 @@ app.post('/api/sessions/start', requireAuth, async (req, res) => {
       }
     } catch(e){ console.error('Weather capture error:', e.message); }
 
-    const sessionDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const sessionDate = sessionStartTime.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     const session = await pool.query(
-      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, temp_f, date) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF, sessionDate]
+      'INSERT INTO orchard_sessions (block_id, block_name, session_type, irr_type, notes, temp_f, date, start_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF, sessionDate, sessionStartTime.toISOString()]
     );
     if (session_type !== 'Foggers') {
       // last_watered and next_water are updated when session ENDS, not on start
@@ -320,35 +321,85 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
         let lastWateredDate;
 
         if(sharedSources.includes(waterSource)) {
-          // Find earliest start_time among all sessions from blocks sharing this water source
-          // within the last 30 days (to avoid pulling from prior cycles)
-          const earliestRes = await pool.query(`
-            SELECT MIN(s.start_time) as earliest_start
-            FROM orchard_sessions s
-            JOIN orchard_blocks b ON b.name = s.block_name
-            WHERE b.water_source = $1
-              AND s.session_type = 'Irrigation'
-              AND s.irr_type IN ('Sprinkler r10', 'Drip')
-              AND s.start_time > NOW() - INTERVAL '30 days'
-              AND (s.status = 'open' OR s.finish_time > NOW() - INTERVAL '30 days')
-          `, [waterSource]);
+          // Box 24 and Box 25 (Pump) get interrupted routinely (often daily, for
+          // heat management) — this is normal operation, not a real cycle break.
+          // A mechanical gap-walk on these two produces nonsense (can land months
+          // in the past), so for these specific sources use each block's own most
+          // recent session start instead of a shared chain-start.
+          const perBlockSources = ['Box 24', 'Box 25 (Pump)'];
 
-          if(earliestRes.rows[0].earliest_start) {
-            const earliest = new Date(earliestRes.rows[0].earliest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-            lastWateredDate = earliest.toLocaleDateString('en-CA');
+          if(perBlockSources.includes(waterSource)) {
+            const ownStartRes = await pool.query(`
+              SELECT MAX(s.start_time) as own_latest_start
+              FROM orchard_sessions s
+              WHERE s.block_name = $1
+                AND s.session_type = 'Irrigation'
+                AND s.irr_type IN ('Sprinkler r10', 'Drip')
+            `, [row.block_name]);
+
+            if(ownStartRes.rows[0].own_latest_start) {
+              const own = new Date(ownStartRes.rows[0].own_latest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+              lastWateredDate = own.toLocaleDateString('en-CA');
+            } else {
+              const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+              lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+            }
+
+            await pool.query(`
+              UPDATE orchard_blocks b
+              SET last_watered = $1,
+                  next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
+              WHERE name = $2
+            `, [lastWateredDate, row.block_name]);
+
           } else {
-            const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-            lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-          }
+            // Gap-based continuous-cycle detection: walk backward through this water
+            // source's sessions and stop at the first gap larger than the threshold.
+            const CHAIN_GAP_THRESHOLD_HOURS = 24;
 
-          // Update ALL blocks sharing this water source with the same last_watered
-          const nextWater = new Date(lastWateredDate + 'T12:00:00');
-          await pool.query(`
-            UPDATE orchard_blocks b
-            SET last_watered = $1,
-                next_water = (DATE $1 + (cycle_days || ' days')::INTERVAL)::DATE
-            WHERE water_source = $2
-          `, [lastWateredDate, waterSource]);
+            const sessionsRes = await pool.query(`
+              SELECT s.start_time, s.finish_time
+              FROM orchard_sessions s
+              JOIN orchard_blocks b ON b.name = s.block_name
+              WHERE b.water_source = $1
+                AND s.session_type = 'Irrigation'
+                AND s.irr_type IN ('Sprinkler r10', 'Drip')
+                AND s.start_time > NOW() - INTERVAL '60 days'
+              ORDER BY s.start_time ASC
+            `, [waterSource]);
+
+            const chainSessions = sessionsRes.rows;
+            let chainStart = null;
+            if(chainSessions.length){
+              chainStart = chainSessions[chainSessions.length - 1].start_time;
+              for(let i = chainSessions.length - 1; i > 0; i--){
+                const current = chainSessions[i];
+                const prev = chainSessions[i - 1];
+                const prevEnd = prev.finish_time || new Date();
+                const gapHours = (new Date(current.start_time) - new Date(prevEnd)) / (1000 * 60 * 60);
+                if(gapHours <= CHAIN_GAP_THRESHOLD_HOURS){
+                  chainStart = prev.start_time;
+                } else {
+                  break;
+                }
+              }
+            }
+
+            if(chainStart) {
+              const earliest = new Date(chainStart.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+              lastWateredDate = earliest.toLocaleDateString('en-CA');
+            } else {
+              const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+              lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+            }
+
+            await pool.query(`
+              UPDATE orchard_blocks b
+              SET last_watered = $1,
+                  next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
+              WHERE water_source = $2
+            `, [lastWateredDate, waterSource]);
+          }
 
         } else {
           // Standard logic for blocks with independent water source
@@ -538,17 +589,17 @@ app.get('/api/weather', async (req, res) => {
 });// ── SHIFTS ──
 app.post('/api/shifts/clockin', requireAuth, async (req, res) => {
   try {
-    const { operator, activity, block_name, notes, location, variety, day_start_time } = req.body;
+    const { operator, activity, block_name, notes, location, variety, day_start_time, clock_in_time } = req.body;
+    const clockInTime = clock_in_time ? new Date(clock_in_time) : new Date();
     // Close any active shift first
     await pool.query(
-      "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active'",
-      [operator || 'Jorge']
+      "UPDATE orchard_shifts SET status='completed', clock_out=$2, total_hours=EXTRACT(EPOCH FROM ($2::timestamp-clock_in))/3600 WHERE operator=$1 AND status='active'",
+      [operator || 'Jorge', clockInTime.toISOString()]
     );
-    const now = new Date();
-    const date = now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); // YYYY-MM-DD
+    const date = clockInTime.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }); // YYYY-MM-DD
     const shift = await pool.query(
-      'INSERT INTO orchard_shifts (operator, activity, block_name, notes, date, location, variety, day_start_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
-      [operator || 'Jorge', activity || 'General', block_name || '', notes || '', date, location || '', variety || '', day_start_time || null]
+      'INSERT INTO orchard_shifts (operator, activity, block_name, notes, date, location, variety, day_start_time, clock_in) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+      [operator || 'Jorge', activity || 'General', block_name || '', notes || '', date, location || '', variety || '', day_start_time || null, clockInTime.toISOString()]
     );
     res.json({ success: true, shift_id: shift.rows[0].id });
   } catch(e) {
@@ -558,10 +609,11 @@ app.post('/api/shifts/clockin', requireAuth, async (req, res) => {
 
 app.post('/api/shifts/clockout', requireAuth, async (req, res) => {
   try {
-    const { operator } = req.body;
+    const { operator, clock_out_time } = req.body;
+    const clockOutTime = clock_out_time ? new Date(clock_out_time) : new Date();
     const result = await pool.query(
-      "UPDATE orchard_shifts SET status='completed', clock_out=NOW(), total_hours=EXTRACT(EPOCH FROM (NOW()-clock_in))/3600 WHERE operator=$1 AND status='active' RETURNING total_hours",
-      [operator || 'Jorge']
+      "UPDATE orchard_shifts SET status='completed', clock_out=$2, total_hours=EXTRACT(EPOCH FROM ($2::timestamp-clock_in))/3600 WHERE operator=$1 AND status='active' RETURNING total_hours",
+      [operator || 'Jorge', clockOutTime.toISOString()]
     );
     if(!result.rows.length) return res.status(404).json({ success: false, message: 'No active shift found' });
     res.json({ success: true, hours: parseFloat(result.rows[0].total_hours).toFixed(2) });
