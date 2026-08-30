@@ -278,6 +278,102 @@ app.post('/api/sessions/start', requireAuth, async (req, res) => {
   }
 });
 
+
+// Shared last_watered/next_water update logic — used by both /api/sessions/end
+// and /api/sessions/switch-type, so a fix in one place always applies to both.
+async function updateLastWateredForBlock(blockName, finishTime) {
+  const blockData = await pool.query('SELECT cycle_days, water_source FROM orchard_blocks WHERE name=$1', [blockName]);
+  if(!blockData.rows.length) return;
+  const cycleDays = blockData.rows[0].cycle_days || 6;
+  const waterSource = blockData.rows[0].water_source;
+
+  const sharedSources = ['Box 24', 'Box 25 (Pump)', 'Box 25 (Pump & Gravity)'];
+  const perBlockSources = ['Box 24', 'Box 25 (Pump)'];
+  let lastWateredDate;
+
+  if(sharedSources.includes(waterSource)) {
+    if(perBlockSources.includes(waterSource)) {
+      const ownStartRes = await pool.query(`
+        SELECT MAX(s.start_time) as own_latest_start
+        FROM orchard_sessions s
+        WHERE s.block_name = $1
+          AND s.session_type = 'Irrigation'
+          AND s.irr_type IN ('Sprinkler r10', 'Drip')
+      `, [blockName]);
+
+      if(ownStartRes.rows[0].own_latest_start) {
+        const own = new Date(ownStartRes.rows[0].own_latest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lastWateredDate = own.toLocaleDateString('en-CA');
+      } else {
+        const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+      }
+
+      await pool.query(`
+        UPDATE orchard_blocks b
+        SET last_watered = $1,
+            next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
+        WHERE name = $2
+      `, [lastWateredDate, blockName]);
+
+    } else {
+      const CHAIN_GAP_THRESHOLD_HOURS = 24;
+
+      const sessionsRes = await pool.query(`
+        SELECT s.start_time, s.finish_time
+        FROM orchard_sessions s
+        JOIN orchard_blocks b ON b.name = s.block_name
+        WHERE b.water_source = $1
+          AND s.session_type = 'Irrigation'
+          AND s.irr_type IN ('Sprinkler r10', 'Drip')
+          AND s.start_time > NOW() - INTERVAL '60 days'
+        ORDER BY s.start_time ASC
+      `, [waterSource]);
+
+      const chainSessions = sessionsRes.rows;
+      let chainStart = null;
+      if(chainSessions.length){
+        chainStart = chainSessions[chainSessions.length - 1].start_time;
+        for(let i = chainSessions.length - 1; i > 0; i--){
+          const current = chainSessions[i];
+          const prev = chainSessions[i - 1];
+          const prevEnd = prev.finish_time || new Date();
+          const gapHours = (new Date(current.start_time) - new Date(prevEnd)) / (1000 * 60 * 60);
+          if(gapHours <= CHAIN_GAP_THRESHOLD_HOURS){
+            chainStart = prev.start_time;
+          } else {
+            break;
+          }
+        }
+      }
+
+      if(chainStart) {
+        const earliest = new Date(chainStart.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lastWateredDate = earliest.toLocaleDateString('en-CA');
+      } else {
+        const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+        lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+      }
+
+      await pool.query(`
+        UPDATE orchard_blocks b
+        SET last_watered = $1,
+            next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
+        WHERE water_source = $2
+      `, [lastWateredDate, waterSource]);
+    }
+
+  } else {
+    const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    lastWateredDate = pacificDate.toLocaleDateString('en-CA');
+    const nextWater = new Date(pacificDate);
+    nextWater.setDate(pacificDate.getDate() + cycleDays);
+    const nextWaterDate = nextWater.toLocaleDateString('en-CA');
+    await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
+      [lastWateredDate, nextWaterDate, blockName]);
+  }
+}
+
 app.post('/api/sessions/end', requireAuth, async (req, res) => {
   try {
     const { block_name, session_id, sets, end_time } = req.body;
@@ -308,110 +404,7 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
     const row = result.rows[0]; // Always one row now — ID match is exact
     if (row.session_type !== 'Foggers') {
       await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
-
-      // Get water source for this block
-      const blockData = await pool.query('SELECT cycle_days, water_source FROM orchard_blocks WHERE name=$1', [row.block_name]);
-      if(blockData.rows.length) {
-        const cycleDays = blockData.rows[0].cycle_days || 6;
-        const waterSource = blockData.rows[0].water_source;
-
-        // For shared-pump sources (Box 24 and Box 25 Pump/both), use earliest session start
-        // in the current cycle across all blocks sharing the same water source
-        const sharedSources = ['Box 24', 'Box 25 (Pump)', 'Box 25 (Pump & Gravity)'];
-        let lastWateredDate;
-
-        if(sharedSources.includes(waterSource)) {
-          // Box 24 and Box 25 (Pump) get interrupted routinely (often daily, for
-          // heat management) — this is normal operation, not a real cycle break.
-          // A mechanical gap-walk on these two produces nonsense (can land months
-          // in the past), so for these specific sources use each block's own most
-          // recent session start instead of a shared chain-start.
-          const perBlockSources = ['Box 24', 'Box 25 (Pump)'];
-
-          if(perBlockSources.includes(waterSource)) {
-            const ownStartRes = await pool.query(`
-              SELECT MAX(s.start_time) as own_latest_start
-              FROM orchard_sessions s
-              WHERE s.block_name = $1
-                AND s.session_type = 'Irrigation'
-                AND s.irr_type IN ('Sprinkler r10', 'Drip')
-            `, [row.block_name]);
-
-            if(ownStartRes.rows[0].own_latest_start) {
-              const own = new Date(ownStartRes.rows[0].own_latest_start.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-              lastWateredDate = own.toLocaleDateString('en-CA');
-            } else {
-              const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-              lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-            }
-
-            await pool.query(`
-              UPDATE orchard_blocks b
-              SET last_watered = $1,
-                  next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
-              WHERE name = $2
-            `, [lastWateredDate, row.block_name]);
-
-          } else {
-            // Gap-based continuous-cycle detection: walk backward through this water
-            // source's sessions and stop at the first gap larger than the threshold.
-            const CHAIN_GAP_THRESHOLD_HOURS = 24;
-
-            const sessionsRes = await pool.query(`
-              SELECT s.start_time, s.finish_time
-              FROM orchard_sessions s
-              JOIN orchard_blocks b ON b.name = s.block_name
-              WHERE b.water_source = $1
-                AND s.session_type = 'Irrigation'
-                AND s.irr_type IN ('Sprinkler r10', 'Drip')
-                AND s.start_time > NOW() - INTERVAL '60 days'
-              ORDER BY s.start_time ASC
-            `, [waterSource]);
-
-            const chainSessions = sessionsRes.rows;
-            let chainStart = null;
-            if(chainSessions.length){
-              chainStart = chainSessions[chainSessions.length - 1].start_time;
-              for(let i = chainSessions.length - 1; i > 0; i--){
-                const current = chainSessions[i];
-                const prev = chainSessions[i - 1];
-                const prevEnd = prev.finish_time || new Date();
-                const gapHours = (new Date(current.start_time) - new Date(prevEnd)) / (1000 * 60 * 60);
-                if(gapHours <= CHAIN_GAP_THRESHOLD_HOURS){
-                  chainStart = prev.start_time;
-                } else {
-                  break;
-                }
-              }
-            }
-
-            if(chainStart) {
-              const earliest = new Date(chainStart.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-              lastWateredDate = earliest.toLocaleDateString('en-CA');
-            } else {
-              const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-              lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-            }
-
-            await pool.query(`
-              UPDATE orchard_blocks b
-              SET last_watered = $1,
-                  next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
-              WHERE water_source = $2
-            `, [lastWateredDate, waterSource]);
-          }
-
-        } else {
-          // Standard logic for blocks with independent water source
-          const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-          lastWateredDate = pacificDate.toLocaleDateString('en-CA');
-          const nextWater = new Date(pacificDate);
-          nextWater.setDate(pacificDate.getDate() + cycleDays);
-          const nextWaterDate = nextWater.toLocaleDateString('en-CA');
-          await pool.query('UPDATE orchard_blocks SET last_watered=$1, next_water=$2 WHERE name=$3',
-            [lastWateredDate, nextWaterDate, row.block_name]);
-        }
-      }
+      await updateLastWateredForBlock(row.block_name, finishTime);
     }
     updateWaterAlerts();
     res.json({ success: true, hours: parseFloat(row.hours).toFixed(2), sets: row.sets, official_hours: row.official_hours });
@@ -962,21 +955,28 @@ app.post('/api/sessions/switch-type', requireAuth, async (req, res) => {
     }
 
     // Close current open session and log hours
+    const switchTime = new Date();
     const closed = await pool.query(
       `UPDATE orchard_sessions 
-       SET status='completed', finish_time=NOW(), 
-           hours=EXTRACT(EPOCH FROM (NOW()-start_time))/3600
+       SET status='completed', finish_time=$2, 
+           hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600
        WHERE block_name=$1 AND status='open' AND session_type='Irrigation'
        RETURNING hours`,
-      [block_name]
+      [block_name, switchTime.toISOString()]
     );
 
-    // Update total hours on block
+    // Update total hours and last_watered/next_water/water_alert on block —
+    // previously this endpoint closed the session but never touched
+    // last_watered at all, which was the real recurring cause of stale
+    // water_alert status on blocks that get switched frequently (Box 24 /
+    // Box 25 Pump especially, since heat-driven type switches happen often there).
     if(closed.rows.length && closed.rows[0].hours){
       await pool.query(
         'UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2',
         [parseFloat(closed.rows[0].hours), block_name]
       );
+      await updateLastWateredForBlock(block_name, switchTime);
+      updateWaterAlerts();
     }
 
     // Start new session with new irrigation type
