@@ -901,18 +901,25 @@ app.post('/api/weather/alert', async (req, res) => {
 // ── UPDATE WATER ALERTS ──
 async function updateWaterAlerts(){
   try {
-    // Only recalculate water_alert based on stored next_water — never overwrite dates from sessions
+    // Fetch next_water as a plain text string, not a JS Date object — avoids all
+    // container-timezone ambiguity from Date parsing (the previous version assumed
+    // the container runs in UTC; on this deployment it's actually America/Los_Angeles,
+    // which silently skewed daysUntil by ~7 hours and flipped Soon into Due).
     const blocks = await pool.query(
-      'SELECT name, next_water FROM orchard_blocks WHERE next_water IS NOT NULL'
+      "SELECT name, next_water::text as next_water FROM orchard_blocks WHERE next_water IS NOT NULL"
     );
 
-    const todayPacific = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-    todayPacific.setHours(0,0,0,0);
+    // toLocaleDateString with an explicit timeZone option is timezone-independent of
+    // the container's own local setting — it always gives the correct Pacific calendar date.
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+    const todayUTC = new Date(todayStr + 'T00:00:00Z');
 
     for(const block of blocks.rows){
-      const nextWaterMidnight = new Date(block.next_water); // pg DATE column returns a Date object already at UTC midnight
-      nextWaterMidnight.setUTCHours(0,0,0,0);
-      const daysUntil = Math.floor((nextWaterMidnight - todayPacific) / (1000*60*60*24));
+      // next_water is now a plain 'YYYY-MM-DD' string with no Date-object round-trip —
+      // append an explicit UTC midnight suffix so both sides of the subtraction share
+      // the same unambiguous reference frame, regardless of container timezone.
+      const nextWaterUTC = new Date(block.next_water + 'T00:00:00Z');
+      const daysUntil = Math.floor((nextWaterUTC - todayUTC) / (1000*60*60*24));
 
       let alert = '✅ OK';
       if(daysUntil <= 0) alert = '🛑 Due';
