@@ -387,7 +387,7 @@ var currentSessions = [];
 var currentFuel = [];
 
 // Load blocks for filter dropdown
-fetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
+authFetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
   var sel = document.getElementById('f-block');
   data.blocks.forEach(function(b){
     var opt = document.createElement('option');
@@ -527,7 +527,7 @@ function toggleWorker(id){
 
 var currentBlocksAdmin = [];
 function loadBlocksAdmin(){
-  fetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
+  authFetch('/api/admin/blocks').then(r=>r.json()).then(function(data){
     if(!data.success) return;
     currentBlocksAdmin = data.blocks;
     var html = '<table><thead><tr><th>Name</th><th>Location</th><th>Variety</th><th>Irr Type</th><th>Water Source</th><th>Cycle</th><th>Action</th></tr></thead><tbody>';
@@ -591,7 +591,7 @@ function searchFuel(){
   if(to) params.append('to', to);
 
   document.getElementById('fuel-body').innerHTML = '<div class="spinner"></div>';
-  fetch('/api/admin/fuel?'+params.toString()).then(r=>r.json()).then(function(data){
+  authFetch('/api/admin/fuel?'+params.toString()).then(r=>r.json()).then(function(data){
     currentFuel = data.logs || [];
     renderFuelTable(currentFuel);
     renderFuelTotals(currentFuel);
@@ -670,7 +670,7 @@ function search(){
 
   document.getElementById('table-body').innerHTML = '<div class="spinner"></div>';
 
-  fetch('/api/admin/sessions?'+params.toString())
+  authFetch('/api/admin/sessions?'+params.toString())
     .then(r=>r.json())
     .then(function(data){
       currentSessions = data.sessions;
@@ -1111,7 +1111,7 @@ function loadToday(){
   var from = parts[2]+'-'+parts[0]+'-'+parts[1];
   var to = from;
 
-  fetch('/api/admin/sessions?from='+from+'&to='+to+'T23:59:59')
+  authFetch('/api/admin/sessions?from='+from+'&to='+to+'T23:59:59')
     .then(r=>r.json())
     .then(function(data){
       var sessions = data.sessions || [];
@@ -1153,7 +1153,7 @@ function loadToday(){
     });
 
   // Load today's shifts — filter by date column (Pacific date, not clock_in UTC timestamp)
-  fetch('/api/admin/shifts?date='+from)
+  authFetch('/api/admin/shifts?date='+from)
     .then(r=>r.json())
     .then(function(data){
       var shifts = data.shifts || [];
@@ -1281,7 +1281,7 @@ function searchShifts(){
   if(to) params.append('to', to);
 
   document.getElementById('shifts-body').innerHTML = '<div class="spinner"></div>';
-  fetch('/api/admin/shifts?'+params.toString()).then(r=>r.json()).then(function(data){
+  authFetch('/api/admin/shifts?'+params.toString()).then(r=>r.json()).then(function(data){
     currentShifts = data.shifts || [];
     renderShiftsTable(currentShifts);
   });

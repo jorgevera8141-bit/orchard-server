@@ -364,7 +364,20 @@ async function updateLastWateredForBlock(blockName, finishTime) {
     }
 
   } else {
-    const pacificDate = new Date(finishTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    // Independent (non-shared) source: last_watered is based on this block's own
+    // most recent session START time, not the finish time — confirmed by Jorge
+    // Sep 6 2026 as the universal rule across ALL water sources, not just the
+    // shared/per-block ones. Previously this branch incorrectly used finishTime.
+    const ownStartRes = await pool.query(`
+      SELECT MAX(start_time) as own_latest_start
+      FROM orchard_sessions
+      WHERE block_name = $1
+        AND session_type = 'Irrigation'
+        AND irr_type IN ('Sprinkler r10', 'Drip')
+    `, [blockName]);
+
+    const referenceTime = ownStartRes.rows[0].own_latest_start || finishTime;
+    const pacificDate = new Date(referenceTime.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
     lastWateredDate = pacificDate.toLocaleDateString('en-CA');
     const nextWater = new Date(pacificDate);
     nextWater.setDate(pacificDate.getDate() + cycleDays);
