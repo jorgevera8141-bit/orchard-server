@@ -270,7 +270,14 @@ app.post('/api/sessions/start', requireAuth, async (req, res) => {
       [block.rows[0].id, block_name, session_type || 'Irrigation', irr_type || 'Sprinkler r10', notes || '', tempF, sessionDate, sessionStartTime.toISOString()]
     );
     if (session_type !== 'Foggers') {
-      // last_watered and next_water are updated when session ENDS, not on start
+      // Update last_watered/next_water the moment the session OPENS, not just
+      // when it closes — confirmed by Jorge Sep 9 2026. The block is being
+      // watered right now, so the "due" clock should reset immediately
+      // rather than staying stale (showing overdue) for the whole duration
+      // of a session that can run 24-90+ hours. Reuses the same shared
+      // function as session end/switch-type, which already recalculates
+      // from the real start_time in the DB regardless of what's passed in.
+      await updateLastWateredForBlock(block_name, sessionStartTime);
     }
     res.json({ success: true, session_id: session.rows[0].id, temp_f: tempF });
   } catch(e) {
