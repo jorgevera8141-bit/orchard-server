@@ -316,12 +316,14 @@ async function updateLastWateredForBlock(blockName, finishTime) {
         lastWateredDate = pacificDate.toLocaleDateString('en-CA');
       }
 
+      const nextWaterPerBlock = new Date(lastWateredDate + 'T00:00:00');
+      nextWaterPerBlock.setDate(nextWaterPerBlock.getDate() + cycleDays);
       await pool.query(`
-        UPDATE orchard_blocks b
+        UPDATE orchard_blocks
         SET last_watered = $1,
-            next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
-        WHERE name = $2
-      `, [lastWateredDate, blockName]);
+            next_water = $2
+        WHERE name = $3
+      `, [lastWateredDate, nextWaterPerBlock.toLocaleDateString('en-CA'), blockName]);
 
     } else {
       const CHAIN_GAP_THRESHOLD_HOURS = 24;
@@ -362,12 +364,14 @@ async function updateLastWateredForBlock(blockName, finishTime) {
         lastWateredDate = pacificDate.toLocaleDateString('en-CA');
       }
 
+      const nextWaterChain = new Date(lastWateredDate + 'T00:00:00');
+      nextWaterChain.setDate(nextWaterChain.getDate() + cycleDays);
       await pool.query(`
-        UPDATE orchard_blocks b
+        UPDATE orchard_blocks
         SET last_watered = $1,
-            next_water = ($1::DATE + (cycle_days || ' days')::INTERVAL)::DATE
-        WHERE water_source = $2
-      `, [lastWateredDate, waterSource]);
+            next_water = $2
+        WHERE water_source = $3
+      `, [lastWateredDate, nextWaterChain.toLocaleDateString('en-CA'), waterSource]);
     }
 
   } else {
