@@ -12,6 +12,7 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 require('dotenv').config({ quiet: true });
+const { calculateSets, calculateOfficialHours } = require('./utils/water-logic');
 
 // Our schema stores TIMESTAMP (no time zone) columns as UTC wall-clock values
 // (DB session timezone is UTC, so NOW() strips to the UTC wall clock). By default
@@ -414,24 +415,32 @@ app.post('/api/sessions/end', requireAuth, async (req, res) => {
 
     const finishTime = end_time ? new Date(end_time) : new Date();
 
-    // Auto-calculate sets and official hours from real elapsed time
+    // Real hours computed in SQL (a plain timestamp diff — safe to leave there).
+    // sets/official_hours now come from the TESTED function in utils/water-logic.js
+    // instead of being calculated inline in the SQL string.
     let queryParams, querySQL;
     if(session_id){
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$2, hours=EXTRACT(EPOCH FROM ($2::timestamp-start_time))/3600, temp_f=COALESCE(temp_f,$3) WHERE id=$1 AND status='open' RETURNING hours, block_name, session_type, id`;
       queryParams = [session_id, finishTime.toISOString(), endTempF];
     } else {
-      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, sets=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12), official_hours=ROUND(EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600/12)*12, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, sets, official_hours, block_name, session_type`;
+      querySQL = `UPDATE orchard_sessions SET status='completed', finish_time=$3, hours=EXTRACT(EPOCH FROM ($3::timestamp-start_time))/3600, temp_f=COALESCE(temp_f,$2) WHERE block_name=$1 AND session_type='Irrigation' AND status='open' RETURNING hours, block_name, session_type, id`;
       queryParams = [block_name, endTempF, finishTime.toISOString()];
     }
     const result = await pool.query(querySQL, queryParams);
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'No open session found' });
     const row = result.rows[0]; // Always one row now — ID match is exact
+
+    const realHours = parseFloat(row.hours);
+    const calculatedSets = calculateSets(realHours);
+    const officialHours = calculateOfficialHours(realHours);
+    await pool.query('UPDATE orchard_sessions SET sets=$1, official_hours=$2 WHERE id=$3', [calculatedSets, officialHours, row.id]);
+
     if (row.session_type !== 'Foggers') {
-      await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [parseFloat(row.hours), row.block_name]);
+      await pool.query('UPDATE orchard_blocks SET total_hours = total_hours + $1 WHERE name=$2', [realHours, row.block_name]);
       await updateLastWateredForBlock(row.block_name, finishTime);
     }
     updateWaterAlerts();
-    res.json({ success: true, hours: parseFloat(row.hours).toFixed(2), sets: row.sets, official_hours: row.official_hours });
+    res.json({ success: true, hours: realHours.toFixed(2), sets: calculatedSets, official_hours: officialHours });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }
