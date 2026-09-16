@@ -495,7 +495,8 @@ function filterBlocks(query){
 }
 
 function showActiveSessions(){
-  fetch('/api/admin/sessions?status=open').then(r=>r.json()).then(function(data){
+  authFetch('/api/admin/sessions?status=open').then(r=>r.json()).then(function(data){
+    if(!data.success){return;} // auth expired — authFetch is already redirecting to login
     var sessions=data.sessions;
     var list=document.getElementById('card-list');
     if(!sessions.length){list.innerHTML='<div style="color:#ffcc00;text-align:center;padding:40px;font-size:14px">No active sessions right now</div>';return;}
@@ -735,7 +736,8 @@ function logAction(type){
 function showHistory(){
   var list=document.getElementById('card-list');
   list.innerHTML='<div class="spinner"></div>';
-  fetch('/api/admin/sessions?status=completed').then(r=>r.json()).then(function(data){
+  authFetch('/api/admin/sessions?status=completed').then(r=>r.json()).then(function(data){
+    if(!data.success){return;} // auth expired — authFetch is already redirecting to login
     var sessions=data.sessions;
     if(!sessions.length){list.innerHTML='<div style="color:#4a8a28;text-align:center;padding:40px">No records yet</div>';return;}
     var shown = 10;
