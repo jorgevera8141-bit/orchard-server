@@ -680,7 +680,7 @@ app.get('/api/shifts/active', async (req, res) => {
   }
 });
 // ── WEEKLY HOURS ──
-app.get('/api/shifts/weekly', async (req, res) => {
+app.get('/api/shifts/weekly', requireAuth, async (req, res) => {
   try {
     // Get start of current week (Sunday) in Pacific time — handles DST automatically
     const nowUTC = new Date();
@@ -818,7 +818,7 @@ app.get('/api/admin/shifts', requireAdmin, async (req, res) => {
   }
 });
 // ── WORKERS ──
-app.get('/api/workers', async (req, res) => {
+app.get('/api/workers', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT id, name, role, greeting, active, created_at FROM orchard_workers ORDER BY name');
     res.json({ success: true, workers: result.rows });
@@ -907,7 +907,7 @@ app.post('/api/workers/update', requireAdmin, async (req, res) => {
   }
 });
 // ── TEMP ALERT ──
-app.post('/api/weather/alert', async (req, res) => {
+app.post('/api/weather/alert', requireAuth, async (req, res) => {
   try {
     const { temp, level } = req.body;
     const topic = 'orama-ordenes'; // reuse your existing ntfy topic

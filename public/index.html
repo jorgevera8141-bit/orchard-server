@@ -2,47 +2,74 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Orchard Field Manager</title>
 <style>
+:root{--navy-950:#001428;--navy-900:#002244;--surface:#061e34;--surface-raised:#0a2942;--green:#69be28;--green-soft:#b1dc82;--amber:#ffcc00;--text:#f4f7f2;--muted:#aab8c2;--line:rgba(177,220,130,.18)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:Arial,sans-serif;min-height:100vh;background:#002244;max-width:480px;margin:0 auto;overflow-x:hidden;position:relative;}
-body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background-image:repeating-linear-gradient(45deg,transparent 0px,transparent 18px,rgba(105,190,40,0.3) 18px,rgba(105,190,40,0.3) 24px,transparent 24px,transparent 30px,rgba(255,255,255,0.12) 30px,rgba(255,255,255,0.12) 34px);pointer-events:none;z-index:0;}
-.header{position:relative;z-index:10;background:#001428;padding:14px 18px 12px;border-bottom:2px solid #69BE28;display:flex;justify-content:space-between;align-items:center;}
-.header-title h1{font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px}
-.header-title p{font-size:11px;color:#69BE28;margin-top:3px}
-.header-date .day{font-size:12px;font-weight:700;color:#69BE28;text-align:right}
-.header-date .dt{font-size:10px;color:#4a8a28;text-align:right}
+body{font-family:Arial,sans-serif;min-height:100vh;background:radial-gradient(ellipse at 50% 0,#123c46 0,#002244 54%);max-width:480px;margin:0 auto;overflow-x:hidden;position:relative;color:var(--text)}
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 50% 12%,rgba(105,190,40,.06),transparent 48%);pointer-events:none;z-index:0;}
+.header{position:sticky;top:0;z-index:20;background:rgba(0,20,40,.97);padding:14px 18px 12px;border-bottom:1px solid rgba(177,220,130,.28);display:flex;justify-content:space-between;align-items:center;backdrop-filter:blur(14px);}
+.header-title h1{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.02em}
+.header-title p{font-size:13px;color:#b1dc82;margin-top:3px}
+.header-date .day{font-size:13px;font-weight:700;color:#b1dc82;text-align:right}
+.header-date .dt{font-size:12px;color:#aab8c2;text-align:right}
 /* OFFLINE BANNER */
-#offline-banner{display:none;position:relative;z-index:15;background:#ff4444;color:white;padding:7px 16px;font-size:11px;font-family:monospace;font-weight:700;text-align:center;letter-spacing:0.5px;}
+#offline-banner{display:none;position:relative;z-index:15;background:#b92d2d;color:white;padding:9px 16px;font-size:13px;font-family:monospace;font-weight:700;text-align:center;letter-spacing:0.3px;}
 #offline-banner.visible{display:block;}
-.filters{position:relative;z-index:10;display:flex;gap:8px;padding:10px 16px;background:#001830;overflow-x:auto;}
-.pill{flex-shrink:0;padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;}
+.filters{position:relative;z-index:10;display:flex;gap:10px;padding:12px 16px;background:rgba(0,24,48,.92);overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.pill{appearance:none;flex-shrink:0;min-height:42px;padding:8px 16px;border-radius:22px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;border:1px solid transparent;}
 .pill.active{background:rgba(105,190,40,0.2);border-color:#69BE28;color:#69BE28}
 .pill.inactive{background:rgba(0,0,0,0.3);border-color:rgba(105,190,40,0.2);color:#4a8a28}
-.card-list{position:relative;z-index:5;padding:16px 0 100px;}
-.card-wrap{position:relative;margin-bottom:22px;height:90px;cursor:pointer;transition:transform 0.15s;}
+.card-list{position:relative;z-index:5;padding:22px 0 210px;}
+.card-wrap{appearance:none;display:block;width:100%;text-align:initial;color:inherit;border:0;background:transparent;font:inherit;position:relative;margin-bottom:24px;height:94px;cursor:pointer;transition:transform .15s ease;}
 .card-wrap:active{transform:scale(0.98)}
 .hex{position:absolute;height:84px;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;}
-.card-left .hex-green{left:20px;width:260px;top:14px;background:#69BE28}
-.card-left .hex-navy{left:20px;width:260px;top:7px;background:#002f6c}
-.card-left .hex-grey{left:20px;width:260px;top:0px;background:#c8d4e0}
-.card-right .hex-green{right:20px;width:260px;top:14px;background:#69BE28}
-.card-right .hex-navy{right:20px;width:260px;top:7px;background:#002f6c}
-.card-right .hex-grey{right:20px;width:260px;top:0px;background:#c8d4e0}
+.card-left .hex-green{left:20px;width:min(260px,calc(100vw - 48px));top:14px;background:#69BE28}
+.card-left .hex-navy{left:20px;width:min(260px,calc(100vw - 48px));top:7px;background:#002f6c}
+.card-left .hex-grey{left:20px;width:min(260px,calc(100vw - 48px));top:0px;background:#d6e2e5}
+.card-right .hex-green{right:20px;width:min(260px,calc(100vw - 48px));top:14px;background:#69BE28}
+.card-right .hex-navy{right:20px;width:min(260px,calc(100vw - 48px));top:7px;background:#002f6c}
+.card-right .hex-grey{right:20px;width:min(260px,calc(100vw - 48px));top:0px;background:#d6e2e5}
 .card-content{text-align:center;pointer-events:none;}
 .card-name{font-size:14px;font-weight:900;font-family:Georgia,serif;color:#1a1a2e;display:flex;align-items:center;justify-content:center;gap:6px;}
-.card-sub{font-size:9px;color:#334;font-family:monospace;margin-top:3px}
+.card-sub{font-size:12px;color:#334;font-family:monospace;margin-top:4px;line-height:1.35}
 .sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 /* LIVE TIMER */
 #ov-live-timer{font-size:28px;font-weight:300;font-family:monospace;color:#69BE28;letter-spacing:3px;text-align:center;margin:10px 0 4px;display:none;}
-#ov-timer-label{font-size:9px;color:#4a8a28;font-family:monospace;text-align:center;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:none;}
+#ov-timer-label{font-size:12px;color:#b1dc82;font-family:monospace;text-align:center;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:none;}
 .spinner{width:24px;height:24px;border:2px solid rgba(105,190,40,0.2);border-top-color:#69BE28;border-radius:50%;animation:spin 0.75s linear infinite;margin:40px auto;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.legend{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#001428;border-top:2px solid #69BE28;padding:10px 20px;display:flex;gap:16px;align-items:center;z-index:20;}
-.leg{display:flex;align-items:center;gap:5px;font-size:10px;color:#aaa}
+.legend{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(0,20,40,.95);border-top:1px solid rgba(177,220,130,.2);padding:10px 20px;display:flex;gap:18px;align-items:center;justify-content:center;z-index:20;backdrop-filter:blur(12px)}
+.leg{display:flex;align-items:center;gap:7px;font-size:12px;color:#c5ced3}
 .leg-dot{width:6px;height:6px;border-radius:50%}
+.header #weather-desc{font-size:11px!important;color:#b1dc82!important}
+#search-input{font-size:14px!important;min-height:46px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:3px solid #b1dc82!important;outline-offset:3px}
+input,select,textarea{font-size:14px!important;min-height:44px}
+#ov-container{width:min(340px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+#ov-info>div[style*="clip-path"],#ov-irrigation>div[style*="clip-path"],#ov-fert>div[style*="clip-path"]{width:100%!important;height:auto!important;min-height:0;aspect-ratio:1;padding:clamp(44px,15vw,60px) clamp(28px,10vw,40px)!important}
+#ov-info-content{font-size:12px!important;line-height:1.6!important}
+.field-dock{position:fixed;bottom:calc(8px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(456px,calc(100vw - 24px));z-index:30;display:flex;flex-direction:column;gap:8px}
+.field-action-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:rgba(0,20,40,.97);padding:8px;border:1px solid rgba(177,220,130,.24);border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.35);backdrop-filter:blur(14px)}
+.dock-action{appearance:none;min-height:52px;border:1px solid rgba(177,220,130,.2);border-radius:12px;background:var(--navy-900);color:var(--green-soft);font:inherit;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+.dock-action.primary{background:var(--green);color:var(--navy-950);border-color:var(--green)}
+.dock-action.danger{color:#ff9a92;border-color:rgba(255,100,100,.4)}
+.more-action-menu{display:grid;gap:6px;align-self:flex-end;width:min(260px,100%);padding:8px;border:1px solid rgba(177,220,130,.24);border-radius:16px;background:rgba(0,20,40,.98);box-shadow:0 12px 36px rgba(0,0,0,.38)}
+.more-action-menu[hidden]{display:none}
+.more-action-menu button{appearance:none;width:100%;min-height:48px;padding:10px 14px;text-align:left;background:transparent;border:0;border-radius:10px;color:var(--text);font:inherit;font-size:14px;cursor:pointer}
+.more-action-menu button:hover{background:rgba(105,190,40,.12)}
+.overlay-close,.overlay-step{appearance:none;border:0;border-radius:50%;width:44px;height:44px;background:rgba(0,0,0,.18);color:inherit;font:inherit;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10}
+.overlay-close{position:absolute;top:10px;right:10px}
+.overlay-step{position:absolute;left:50%;transform:translateX(-50%);background:rgba(0,20,40,.18)}
+.overlay-step.next{bottom:clamp(44px,15vw,70px);font-size:24px}
+.overlay-step.previous{top:clamp(44px,15vw,70px);font-size:20px}
+.overlay-action{appearance:none;width:min(100%,220px);min-height:50px;padding:12px 16px;border:1px solid rgba(177,220,130,.4);border-radius:12px;background:rgba(255,255,255,.12);color:white;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.overlay-action.danger{border-color:#ff7770;background:rgba(255,68,68,.16)}
+@media(max-width:360px){.header{padding:12px}.header-title h1{font-size:15px}.header-title p{font-size:12px}.field-action-bar{gap:5px;padding:6px}.dock-action{font-size:12px;min-height:50px}.legend{gap:12px;padding:9px}.card-sub{font-size:11px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -72,15 +99,15 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 <div id="temp-alert" style="display:none;background:rgba(255,204,0,0.9);color:#002244;padding:10px 16px;font-size:13px;font-weight:700;font-family:monospace;align-items:center;justify-content:center;text-align:center;z-index:15;position:relative"></div>
 
 <div class="filters">
-  <div class="pill active" onclick="setFilter('all',this)">All Blocks</div>
-  <div class="pill inactive" onclick="setFilter('due',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff4444;margin-right:4px;vertical-align:middle"></span>Due</div>
-  <div class="pill inactive" onclick="setFilter('soon',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ffcc00;margin-right:4px;vertical-align:middle"></span>Soon</div>
-  <div class="pill inactive" onclick="setFilter('ok',this)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#69BE28;margin-right:4px;vertical-align:middle"></span>OK</div>
+  <button type="button" class="pill active" aria-pressed="true" onclick="setFilter('all',this)">All Blocks</button>
+  <button type="button" class="pill inactive" aria-pressed="false" onclick="setFilter('due',this)"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff4444;margin-right:5px;vertical-align:middle"></span>Due</button>
+  <button type="button" class="pill inactive" aria-pressed="false" onclick="setFilter('soon',this)"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffcc00;margin-right:5px;vertical-align:middle"></span>Soon</button>
+  <button type="button" class="pill inactive" aria-pressed="false" onclick="setFilter('ok',this)"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#69BE28;margin-right:5px;vertical-align:middle"></span>OK</button>
 </div>
 
-<div style="display:flex;gap:8px;padding:8px 16px;background:#001830">
+<div style="display:flex;gap:10px;padding:10px 16px;background:#001830">
   <input id="search-input" type="search" autocomplete="off" placeholder="Search block..." style="flex:1;background:#001428;border:1px solid rgba(105,190,40,0.3);border-radius:10px;padding:8px 12px;color:white;font-size:12px;outline:none" oninput="filterBlocks(this.value)">
-  <div onclick="showHistory()" style="background:#001428;border:1px solid rgba(105,190,40,0.2);border-radius:10px;padding:8px 14px;font-size:12px;color:#69BE28;cursor:pointer">History</div>
+  <button type="button" onclick="showHistory()" style="background:#001428;border:1px solid rgba(105,190,40,0.2);border-radius:10px;padding:8px 14px;font-size:14px;color:#b1dc82;cursor:pointer;min-height:46px">History</button>
 </div>
 
 <div class="card-list" id="card-list"><div class="spinner"></div></div>
@@ -90,58 +117,54 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 <div id="ov-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.1);z-index:101;width:340px;transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1)">
 
   <div id="ov-info" style="display:block;position:relative">
-    <div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:#002244;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.1);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
     <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#c8d4e0;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <span id="ov-name" style="font-size:16px;font-weight:900;font-family:Georgia,serif;color:#1a1a2e"></span>
         <span id="ov-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></span>
       </div>
       <div id="ov-info-content" style="font-size:10px;color:#334;font-family:monospace;line-height:1.8;text-align:left;width:100%"></div>
-      <div onclick="showOvLayer('ov-irrigation')" style="position:absolute;bottom:70px;font-size:28px;color:#002244;cursor:pointer;font-weight:900">▼</div>
+      <button type="button" class="overlay-step next" aria-label="Show irrigation details" onclick="showOvLayer('ov-irrigation')">↓</button>
     </div>
   </div>
 
   <div id="ov-irrigation" style="display:none;position:relative">
-    <div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:white;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.4);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
     <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#002f6c;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
-      <div onclick="showOvLayer('ov-info')" style="position:absolute;top:70px;font-size:22px;color:#69BE28;cursor:pointer">▲</div>
+      <button type="button" class="overlay-step previous" aria-label="Show block overview" onclick="showOvLayer('ov-info')">↑</button>
       <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:8px" id="ov-name-irr"></div>
       <div id="ov-live-timer">00:00:00</div>
       <div id="ov-timer-label">Active session</div>
       <div id="ov-irr-buttons" style="display:flex;flex-direction:column;gap:12px;width:160px"></div>
-      <div onclick="showOvLayer('ov-fert')" style="position:absolute;bottom:70px;font-size:28px;color:#69BE28;cursor:pointer;font-weight:900">▼</div>
+      <button type="button" class="overlay-step next" aria-label="Show fertilizer actions" onclick="showOvLayer('ov-fert')">↓</button>
     </div>
   </div>
 
   <div id="ov-fert" style="display:none;position:relative">
-    <div onclick="closeOverlay()" style="position:absolute;top:10px;right:10px;z-index:10;font-size:18px;color:white;cursor:pointer;font-weight:700;background:rgba(0,0,0,0.4);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</div>
+    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
     <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#1a4a1a;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
-      <div onclick="showOvLayer('ov-irrigation')" style="position:absolute;top:70px;font-size:22px;color:#69BE28;cursor:pointer">▲</div>
+      <button type="button" class="overlay-step previous" aria-label="Show irrigation details" onclick="showOvLayer('ov-irrigation')">↑</button>
       <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:20px" id="ov-name-fert"></div>
       <div style="display:flex;flex-direction:column;gap:12px;width:160px">
-        <div onclick="logAction('Fertilizer')" style="background:rgba(255,255,255,0.15);border:2px solid #69BE28;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">🌱 Fertilizer</div>
-        <div onclick="logAction('Foggers')" style="background:rgba(255,255,255,0.15);border:2px solid #69BE28;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">🌫️ Foggers</div>
+        <button type="button" class="overlay-action" onclick="logAction('Fertilizer')">🌱 Fertilizer</button>
+        <button type="button" class="overlay-action" onclick="logAction('Foggers')">🌫️ Foggers</button>
       </div>
     </div>
   </div>
 </div>
 
-<div style="position:fixed;bottom:52px;left:16px;z-index:30;display:flex;flex-direction:column;gap:10px;align-items:center">
-  <div onclick="clockIn()" style="background:#002244;border:2px solid #69BE28;color:#69BE28;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)"><span style="font-size:9px;font-weight:700;font-family:monospace;letter-spacing:1px">IN</span></div>
-  <div onclick="clockOut()" style="background:#002244;border:2px solid #ff4444;color:#ff4444;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)"><span style="font-size:9px;font-weight:700;font-family:monospace;letter-spacing:1px">OUT</span></div>
-  <div onclick="switchActivity()" style="background:#002244;border:2px solid #aaaaaa;color:#aaaaaa;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)"><span style="font-size:18px">⇄</span></div>
-</div>
-
-<div style="position:fixed;bottom:52px;right:16px;z-index:30;display:flex;flex-direction:column;gap:10px;align-items:center">
-  <div onclick="showWeeklyHours()" style="background:#002244;border:2px solid #c8d4e0;color:#c8d4e0;width:48px;height:48px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
-    <span id="weekly-used" style="font-size:10px;font-weight:700;font-family:monospace">0h</span>
-    <span style="font-size:7px;font-family:monospace;color:#aaa">of 39</span>
+<div class="field-dock">
+  <div class="more-action-menu" id="more-action-menu" hidden>
+    <button type="button" onclick="toggleMoreActions(false);switchActivity()">Switch activity</button>
+    <button type="button" onclick="toggleMoreActions(false);showWeeklyHours()">Weekly hours <span id="weekly-used">0h</span></button>
+    <button type="button" onclick="toggleMoreActions(false);showActiveSessions()">Active sessions</button>
+    <button type="button" onclick="toggleMoreActions(false);showFuelLog()">Fuel log</button>
   </div>
-  <div onclick="showActiveSessions()" style="background:#002244;border:2px solid #ffcc00;color:#ffcc00;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);position:relative">
-    <span style="font-size:9px;font-weight:700;font-family:monospace;letter-spacing:1px">LIVE</span>
-    <span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:#ffcc00;animation:pulse 1.5s infinite"></span>
-  </div>
-  <div onclick="showFuelLog()" style="background:#69BE28;color:#002244;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4)">⛽</div>
+  <nav class="field-action-bar" aria-label="Time and field actions">
+    <button type="button" class="dock-action primary" aria-label="Clock in" onclick="clockIn()">Clock in</button>
+    <button type="button" class="dock-action danger" aria-label="Clock out" onclick="clockOut()">Clock out</button>
+    <button type="button" class="dock-action" id="more-actions-button" aria-expanded="false" aria-controls="more-action-menu" onclick="toggleMoreActions()">More</button>
+  </nav>
 </div>
 
 <div class="legend">
@@ -480,11 +503,23 @@ function parseBlockInfo(s){
 }
 
 function setFilter(filter,el){
-  document.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');p.classList.add('inactive');});
-  el.classList.add('active');el.classList.remove('inactive');
+  document.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');p.classList.add('inactive');p.setAttribute('aria-pressed','false');});
+  el.classList.add('active');el.classList.remove('inactive');el.setAttribute('aria-pressed','true');
   if(filter==='all') renderCards(allBlocks);
   else renderCards(allBlocks.filter(function(b){return getStatus(b.alert)===filter;}));
 }
+
+function toggleMoreActions(forceOpen){
+  var menu=document.getElementById('more-action-menu');
+  var button=document.getElementById('more-actions-button');
+  var shouldOpen=typeof forceOpen==='boolean'?forceOpen:menu.hidden;
+  menu.hidden=!shouldOpen;
+  button.setAttribute('aria-expanded',String(shouldOpen));
+}
+
+document.addEventListener('keydown',function(event){
+  if(event.key==='Escape') toggleMoreActions(false);
+});
 
 function filterBlocks(query){
   var normalized=String(query||'').trim().toLowerCase();
@@ -520,8 +555,8 @@ function loadWeather(){
       document.getElementById('weather-desc').textContent=data.humidity+'%';
       document.getElementById('weather-badge').title=data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
       var lastTemp=parseInt(localStorage.getItem('last_alert_temp')||'0');
-      if(data.temp>=90&&lastTemp<90){fetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'critical'})});localStorage.setItem('last_alert_temp',String(data.temp));}
-      else if(data.temp>=88&&lastTemp<88){fetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'warning'})});localStorage.setItem('last_alert_temp',String(data.temp));}
+      if(data.temp>=90&&lastTemp<90){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'critical'})});localStorage.setItem('last_alert_temp',String(data.temp));}
+      else if(data.temp>=88&&lastTemp<88){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'warning'})});localStorage.setItem('last_alert_temp',String(data.temp));}
       else if(data.temp<88){localStorage.setItem('last_alert_temp','0');}
       var alertEl=document.getElementById('temp-alert');
       if(alertEl){
@@ -569,7 +604,7 @@ function renderCards(blocks){
     var savedSession=getPersistedSession(b.name);
     var hasActive=(b.openRecordId&&b.openRecordId!=='null'&&b.openRecordId.length>0)||savedSession;
     var dot=hasActive?'#4488ff':getDotColor(status);    var side=i%2===0?'card-left':'card-right';
-    return '<div class="card-wrap '+side+'" data-idx="'+i+'" onclick="openBlock('+i+')">'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:8px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:2px 7px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+escapeHtml(b.name)+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+escapeHtml(b.lastWatered)+'</div>'      +'<div class="card-sub">Next: '+escapeHtml(b.nextWater)+'</div>'      +'</div></div></div>';
+    return '<div class="card-wrap '+side+'" role="button" tabindex="0" data-idx="'+i+'" aria-label="Open orchard block '+escapeHtml(b.name)+'" onclick="openBlock('+i+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openBlock('+i+')}" >'      +'<div class="hex hex-green"></div>'      +'<div class="hex hex-navy"></div>'      +'<div class="hex hex-grey">'      +(hasActive?'<div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:#4466aa;color:white;font-size:10px;font-weight:700;font-family:monospace;letter-spacing:1px;padding:3px 8px;border-radius:4px;z-index:10;white-space:nowrap">ACTIVE</div>':'')      +'<div class="card-content">'      +'<div class="card-name">'+escapeHtml(b.name)+'<span class="sdot" style="background:'+dot+'"></span></div>'      +'<div class="card-sub">Last: '+escapeHtml(b.lastWatered)+'</div>'      +'<div class="card-sub">Next: '+escapeHtml(b.nextWater)+'</div>'      +'</div></div></div>';
   }).join('');
 }
 
@@ -590,13 +625,13 @@ function openBlock(idx){
   if(hasSession||savedSession){
     if(startMs) startLiveTimer(startMs);
     document.getElementById('ov-irr-buttons').innerHTML=
-      '<div onclick="logAction(\'End Cycle\')" style="background:rgba(255,68,68,0.2);border:2px solid #ff4444;border-radius:12px;padding:14px;color:white;font-size:16px;font-weight:700;cursor:pointer;text-align:center;width:160px">⏹ End Cycle</div>'
-      +'<div onclick="showSwitchType()" style="background:rgba(100,150,255,0.2);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center;width:160px;margin-top:8px">🔄 Switch Type</div>';
+      '<button type="button" class="overlay-action danger" onclick="logAction(\'End Cycle\')">⏹ End Cycle</button>'
+      +'<button type="button" class="overlay-action" onclick="showSwitchType()">🔄 Switch Type</button>';
   } else {
     stopLiveTimer();
     document.getElementById('ov-irr-buttons').innerHTML=
-      '<div onclick="showStartTimeModal(\''+b.name.replace(/'/g,"\\'")+'\',' + '\'Drip\')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>'
-      +'<div onclick="showStartTimeModal(\''+b.name.replace(/'/g,"\\'")+'\',' + '\'Sprinkler r10\')" style="background:rgba(255,255,255,0.15);border:2px solid #4466aa;border-radius:12px;padding:14px;color:white;font-size:14px;font-weight:700;cursor:pointer;text-align:center">💦 Sprinkler r10</div>';
+      '<button type="button" class="overlay-action" onclick="showStartTimeModal(\''+b.name.replace(/'/g,"\\'")+'\',' + '\'Drip\')">💧 Drip</button>'
+      +'<button type="button" class="overlay-action" onclick="showStartTimeModal(\''+b.name.replace(/'/g,"\\'")+'\',' + '\'Sprinkler r10\')">💦 Sprinkler r10</button>';
   }
 
   showOvLayer('ov-irrigation');
@@ -751,14 +786,14 @@ function showHistory(){
           +'</div>'
           +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'
           +'<span style="color:#aaa;font-size:10px">'+formatDateOnly(s.start_time)+' · '+(s.hours?parseFloat(s.hours).toFixed(2)+'h':'open')+'</span>'
-          +'<span onclick="editSessionFromHistory('+i+')" style="color:#ffcc00;font-size:10px;cursor:pointer;border:1px solid #ffcc00;border-radius:4px;padding:2px 8px;font-family:monospace">Edit</span>'
+          +'<button type="button" onclick="editSessionFromHistory('+i+')" style="color:#ffcc00;font-size:12px;cursor:pointer;border:1px solid #ffcc00;border-radius:6px;padding:6px 10px;background:transparent;font-family:inherit">Edit</button>'
           +'</div>'
           +'</div>';
       }).join('');
       var moreBtn = shown < sessions.length
-        ? '<div onclick="showMore()" style="text-align:center;padding:12px 16px;color:#69BE28;font-size:12px;cursor:pointer;font-family:monospace">Show More ('+sessions.length+' total)</div>'
+        ? '<button type="button" onclick="showMore()" style="display:block;width:calc(100% - 32px);margin:8px 16px;text-align:center;padding:12px 16px;color:#b1dc82;font-size:14px;cursor:pointer;font-family:inherit;background:#061e34;border:1px solid rgba(177,220,130,.2);border-radius:10px">Show More ('+sessions.length+' total)</button>'
         : '<div style="text-align:center;padding:12px;color:#4a8a28;font-size:11px;font-family:monospace">All '+sessions.length+' records shown</div>';
-      list.innerHTML='<div style="padding:8px 16px"><div onclick="loadBlocks()" style="color:#69BE28;font-size:12px;cursor:pointer">← Back to blocks</div></div>'+rows+moreBtn;
+      list.innerHTML='<div style="padding:8px 16px"><button type="button" onclick="loadBlocks()" style="color:#b1dc82;font-size:14px;cursor:pointer;background:none;border:0;padding:8px 0">← Back to blocks</button></div>'+rows+moreBtn;
     }
     window.showMore = function(){ shown = Math.min(shown+10, sessions.length); renderHistory(); };
     renderHistory();
@@ -772,7 +807,7 @@ function showFuelLog(){
   modal.innerHTML=`<div style="background:#001428;border:1px solid #69BE28;border-radius:16px;padding:24px;width:90%;max-width:400px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <span style="color:white;font-size:16px;font-weight:700;font-family:Georgia,serif">⛽ Fuel Log</span>
-      <span onclick="document.getElementById('fuel-modal').remove()" style="color:#aaa;font-size:20px;cursor:pointer">✕</span>
+      <button type="button" aria-label="Close fuel log" onclick="document.getElementById('fuel-modal').remove()" style="color:#c5ced3;font-size:20px;cursor:pointer;background:none;border:0;min-width:44px;min-height:44px">×</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div><div style="color:#69BE28;font-size:10px;font-family:monospace;text-transform:uppercase;margin-bottom:4px">Date</div>
@@ -908,11 +943,11 @@ function submitSwitch(){
 }
 
 function loadWeeklyHours(){
-  fetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){if(data.success){var el=document.getElementById('weekly-used');if(el) el.textContent=data.total_hours+'h';}});
+  authFetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){if(data.success){var el=document.getElementById('weekly-used');if(el) el.textContent=data.total_hours+'h';}});
 }
 
 function showWeeklyHours(){
-  fetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){
+  authFetch('/api/shifts/weekly').then(r=>r.json()).then(function(data){
     if(!data.success) return;
     var modal=document.createElement('div');
     modal.id='weekly-modal';
@@ -932,9 +967,9 @@ function showWeeklyHours(){
       data.entries.forEach(function(e){
         window._entryData = window._entryData || {};
         window._entryData[e.date] = e;
-        html+='<div style="background:#002244;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" data-entrydate="'+e.date+'" onclick="showEntryDetail(window._entryData[this.dataset.entrydate])">'
+        html+='<div role="button" tabindex="0" style="display:block;width:100%;text-align:left;color:inherit;background:#002244;border:1px solid rgba(177,220,130,.16);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;font:inherit" data-entrydate="'+e.date+'" onclick="showEntryDetail(window._entryData[this.dataset.entrydate])" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();showEntryDetail(window._entryData[this.dataset.entrydate])}">'
           +'<div style="display:flex;justify-content:space-between"><span style="color:white;font-size:13px;font-weight:700">'+e.weekday+'</span><span style="color:#69BE28;font-size:12px;font-weight:700">'+e.day_hours+'h</span></div>'
-          +'<div style="color:#aaa;font-size:10px;margin-top:4px">'+e.date+'</div></div>';
+          +'<div style="color:#c5ced3;font-size:12px;margin-top:5px">'+e.date+'</div></div>';
       });
     }else{html+='<div style="color:#4a8a28;text-align:center;padding:20px">No entries this week</div>';}
     html+='</div>';
@@ -970,7 +1005,7 @@ function showEntryDetail(entry){
         +'<span style="color:white;font-size:12px;font-weight:700">'+s.activity+'</span>'
         +'<div style="display:flex;gap:8px;align-items:center">'
         +'<span style="color:#69BE28;font-size:11px">'+(parseFloat(s.total_hours)||0).toFixed(2)+'h</span>'
-        +'<span onclick="showEditShiftModal(window._shiftData['+s.id+'])" style="color:#ffcc00;font-size:10px;cursor:pointer;border:1px solid #ffcc00;border-radius:4px;padding:2px 6px">Edit</span>'
+        +'<button type="button" onclick="showEditShiftModal(window._shiftData['+s.id+'])" style="color:#ffcc00;font-size:12px;cursor:pointer;border:1px solid #ffcc00;border-radius:6px;padding:6px 10px;background:transparent">Edit</button>'
         +'</div></div>'
         +'<div style="color:#aaa;font-size:10px;margin-top:3px">'+(s.block_name||'--')+' - '+(s.location||'--')+'</div>'
         +'<div style="color:#555;font-size:10px;margin-top:2px">'+fT(s.clock_in)+' to '+fT(s.clock_out)+'</div></div>';
@@ -1230,8 +1265,8 @@ function showSwitchType(){
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><span style="color:white;font-size:16px;font-weight:700">🔄 Switch Irrigation Type</span><button onclick="document.getElementById(\'switch-type-modal\').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button></div>'
     +'<div style="color:#aaa;font-size:12px;margin-bottom:16px">Block: '+activeBlock.name+'</div>'
     +'<div style="display:flex;flex-direction:column;gap:10px">'
-    +'<div onclick="submitSwitchType(\'Sprinkler r10\')" style="background:rgba(255,255,255,0.1);border:2px solid #4466aa;border-radius:12px;padding:16px;color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:center">💦 Sprinkler r10</div>'
-    +'<div onclick="submitSwitchType(\'Drip\')" style="background:rgba(255,255,255,0.1);border:2px solid #4466aa;border-radius:12px;padding:16px;color:white;font-size:15px;font-weight:700;cursor:pointer;text-align:center">💧 Drip</div>'
+    +'<button type="button" class="overlay-action" onclick="submitSwitchType(\'Sprinkler r10\')">💦 Sprinkler r10</button>'
+    +'<button type="button" class="overlay-action" onclick="submitSwitchType(\'Drip\')">💧 Drip</button>'
     +'</div></div>';
   document.body.appendChild(modal);
 }

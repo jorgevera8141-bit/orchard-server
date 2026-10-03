@@ -2,23 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#002244">
 <title>Orchard Field — Login</title>
 <style>
+  :root{--navy-950:#001428;--navy-900:#002244;--surface:#061e34;--green:#69be28;--green-soft:#b1dc82;--text:#f4f7f2;--muted:#aab8c2}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{-webkit-user-select:none;user-select:none;
     font-family:Arial,sans-serif;
-    background:#002244;
+    background:radial-gradient(ellipse at 50% 25%,#123c46 0,#002244 65%);
     min-height:100vh;
     display:flex;flex-direction:column;
     align-items:center;justify-content:center;
   }
   body::before{
     content:'';position:fixed;top:0;left:0;width:100%;height:100%;
-    background-image:repeating-linear-gradient(45deg,transparent 0px,transparent 18px,rgba(105,190,40,0.3) 18px,rgba(105,190,40,0.3) 24px,transparent 24px,transparent 30px,rgba(255,255,255,0.12) 30px,rgba(255,255,255,0.12) 34px);
+    background:radial-gradient(circle at 50% 15%,rgba(105,190,40,.08),transparent 52%);
     pointer-events:none;z-index:0;
   }
   .container{
@@ -33,18 +34,18 @@
   }
   .logo span{color:#69BE28}
   .subtitle{
-    font-size:11px;color:#4a8a28;
+    font-size:13px;color:#b1dc82;
     font-family:monospace;letter-spacing:2px;
     text-transform:uppercase;margin-bottom:40px;
   }
   .pin-card{
-    background:rgba(0,20,40,0.9);
-    border:1px solid rgba(105,190,40,0.3);
-    border-radius:16px;padding:32px 24px;
-    backdrop-filter:blur(10px);
+    background:rgba(6,30,52,.96);
+    border:1px solid rgba(177,220,130,.24);
+    border-radius:20px;padding:32px 24px;
+    box-shadow:0 24px 64px rgba(0,0,0,.28);
   }
   .pin-label{
-    font-size:11px;color:#69BE28;
+    font-size:13px;color:#b1dc82;
     font-family:monospace;text-transform:uppercase;
     letter-spacing:2px;margin-bottom:20px;
   }
@@ -52,11 +53,12 @@
     display:flex;gap:12px;justify-content:center;
     margin-bottom:28px;
   }
+  .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .pin-dot{
     width:16px;height:16px;border-radius:50%;
     border:2px solid rgba(105,190,40,0.4);
     background:transparent;
-    transition:all 0.15s;
+    transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease;
   }
   .pin-dot.filled{
     background:#69BE28;
@@ -68,12 +70,14 @@
     gap:12px;
   }
   .pin-btn{
-    background:rgba(0,34,68,0.8);
-    border:1px solid rgba(105,190,40,0.2);
-    border-radius:12px;padding:18px;
+    appearance:none;width:100%;min-height:64px;
+    background:rgba(0,34,68,.8);
+    border:1px solid rgba(177,220,130,.2);
+    border-radius:14px;padding:18px;
     font-size:20px;font-weight:700;color:#ffffff;
+    font-family:inherit;
     cursor:pointer;
-    transition:all 0.15s;
+    transition:background-color .15s ease,border-color .15s ease,transform .15s ease;
     -webkit-tap-highlight-color:transparent;
   }
   .pin-btn:active{
@@ -82,9 +86,10 @@
     transform:scale(0.95);
   }
   .pin-btn.del{color:#ff4444;font-size:16px}
-  .pin-btn.empty{background:transparent;border:none;cursor:default}
+  .pin-btn.empty{background:transparent;border:none;cursor:default;visibility:hidden}
+  .pin-btn:focus-visible{outline:3px solid #b1dc82;outline-offset:3px}
   .error-msg{
-    color:#ff4444;font-size:12px;
+    color:#ff7770;font-size:14px;
     font-family:monospace;margin-top:16px;
     min-height:20px;
   }
@@ -101,6 +106,8 @@
   .greeting-sub{font-size:13px;color:#69BE28;margin-bottom:24px}
   .spinner{width:24px;height:24px;border:2px solid rgba(105,190,40,0.2);border-top-color:#69BE28;border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-height:650px){body{justify-content:flex-start;padding:24px 0}.subtitle{margin-bottom:20px}.pin-card{padding:22px 20px}.pin-display{margin-bottom:18px}.pin-grid{gap:8px}.pin-btn{min-height:54px;padding:12px}}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -111,27 +118,28 @@
   <div class="pin-card">
     <div id="pin-section">
       <div class="pin-label">Enter Your PIN</div>
-      <div class="pin-display">
-        <div class="pin-dot" id="d1"></div>
-        <div class="pin-dot" id="d2"></div>
-        <div class="pin-dot" id="d3"></div>
-        <div class="pin-dot" id="d4"></div>
+      <div class="pin-display" aria-hidden="true">
+        <div class="pin-dot" id="d1" aria-hidden="true"></div>
+        <div class="pin-dot" id="d2" aria-hidden="true"></div>
+        <div class="pin-dot" id="d3" aria-hidden="true"></div>
+        <div class="pin-dot" id="d4" aria-hidden="true"></div>
       </div>
+      <div class="visually-hidden" id="pin-status" role="status" aria-live="polite">0 of 4 digits entered</div>
       <div class="pin-grid">
-        <div class="pin-btn" onclick="addPin('1')">1</div>
-        <div class="pin-btn" onclick="addPin('2')">2</div>
-        <div class="pin-btn" onclick="addPin('3')">3</div>
-        <div class="pin-btn" onclick="addPin('4')">4</div>
-        <div class="pin-btn" onclick="addPin('5')">5</div>
-        <div class="pin-btn" onclick="addPin('6')">6</div>
-        <div class="pin-btn" onclick="addPin('7')">7</div>
-        <div class="pin-btn" onclick="addPin('8')">8</div>
-        <div class="pin-btn" onclick="addPin('9')">9</div>
-        <div class="pin-btn empty"></div>
-        <div class="pin-btn" onclick="addPin('0')">0</div>
-        <div class="pin-btn del" onclick="delPin()">⌫</div>
+        <button type="button" class="pin-btn" aria-label="Enter 1" onclick="addPin('1')">1</button>
+        <button type="button" class="pin-btn" aria-label="Enter 2" onclick="addPin('2')">2</button>
+        <button type="button" class="pin-btn" aria-label="Enter 3" onclick="addPin('3')">3</button>
+        <button type="button" class="pin-btn" aria-label="Enter 4" onclick="addPin('4')">4</button>
+        <button type="button" class="pin-btn" aria-label="Enter 5" onclick="addPin('5')">5</button>
+        <button type="button" class="pin-btn" aria-label="Enter 6" onclick="addPin('6')">6</button>
+        <button type="button" class="pin-btn" aria-label="Enter 7" onclick="addPin('7')">7</button>
+        <button type="button" class="pin-btn" aria-label="Enter 8" onclick="addPin('8')">8</button>
+        <button type="button" class="pin-btn" aria-label="Enter 9" onclick="addPin('9')">9</button>
+        <span class="pin-btn empty" aria-hidden="true"></span>
+        <button type="button" class="pin-btn" aria-label="Enter 0" onclick="addPin('0')">0</button>
+        <button type="button" class="pin-btn del" aria-label="Delete last digit" onclick="delPin()">⌫</button>
       </div>
-      <div class="error-msg" id="error-msg"></div>
+      <div class="error-msg" id="error-msg" role="status" aria-live="polite"></div>
     </div>
 
     <div class="greeting" id="greeting-section">
@@ -182,6 +190,7 @@ function updateDots(){
     if(i <= pin.length) dot.classList.add('filled');
     else dot.classList.remove('filled');
   }
+  document.getElementById('pin-status').textContent = pin.length+' of 4 digits entered';
 }
 
 function submitPin(){
@@ -227,6 +236,12 @@ function submitPin(){
     updateDots();
   });
 }
+
+document.addEventListener('keydown',function(event){
+  if(document.getElementById('pin-section').style.display === 'none') return;
+  if(/^\d$/.test(event.key)) addPin(event.key);
+  else if(event.key === 'Backspace') delPin();
+});
 </script>
 </body>
 </html>
