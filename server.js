@@ -13,6 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 require('dotenv').config({ quiet: true });
 const { calculateSets, calculateOfficialHours } = require('./utils/water-logic');
+const { validateWeatherAlert, createWeatherAlertCooldown } = require('./utils/weather-alert');
 
 // Our schema stores TIMESTAMP (no time zone) columns as UTC wall-clock values
 // (DB session timezone is UTC, so NOW() strips to the UTC wall clock). By default
@@ -56,7 +57,10 @@ async function createSession(worker){
 async function getSession(token){
   if(!token) return null;
   const result = await pool.query(
-    'SELECT worker_id, worker_name, role FROM orchard_auth_sessions WHERE token=$1 AND expires_at > NOW()',
+    `SELECT s.worker_id, w.name AS worker_name, w.role
+     FROM orchard_auth_sessions s
+     JOIN orchard_workers w ON w.id = s.worker_id
+     WHERE s.token=$1 AND s.expires_at > NOW() AND w.active=TRUE`,
     [token]
   );
   if(!result.rows.length) return null;
@@ -669,7 +673,7 @@ app.post('/api/shifts/switch', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/shifts/active', async (req, res) => {
+app.get('/api/shifts/active', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM orchard_shifts WHERE status='active' ORDER BY clock_in DESC"
@@ -907,20 +911,32 @@ app.post('/api/workers/update', requireAdmin, async (req, res) => {
   }
 });
 // ── TEMP ALERT ──
+const weatherAlertCooldown = createWeatherAlertCooldown(15 * 60 * 1000);
 app.post('/api/weather/alert', requireAuth, async (req, res) => {
+  const { temp, level } = req.body;
+  if(!validateWeatherAlert(temp, level)) {
+    return res.status(400).json({ success: false, message: 'Invalid weather alert' });
+  }
+  if(!weatherAlertCooldown.claim(req.worker.id, level)) {
+    return res.status(429).json({ success: false, message: 'Alert recently sent; try again later' });
+  }
   try {
-    const { temp, level } = req.body;
     const topic = 'orama-ordenes'; // reuse your existing ntfy topic
     const title = level === 'critical' ? '🚨 COOLING SYSTEM REQUIRED' : '🌫️ Foggers Recommended';
     const message = `Temperature is ${temp}°F at the orchard. ${level === 'critical' ? 'Start cooling foggers immediately!' : 'Consider running foggers.'}`;
     
-    await fetch(`https://ntfy.sh/${topic}`, {
+    const response = await fetch(`https://ntfy.sh/${topic}`, {
       method: 'POST',
       headers: { 'Title': title, 'Priority': level === 'critical' ? 'urgent' : 'high', 'Tags': 'thermometer' },
       body: message
     });
+    if(!response.ok) {
+      weatherAlertCooldown.release(req.worker.id, level);
+      return res.status(502).json({ success: false, message: 'Could not send weather alert' });
+    }
     res.json({ success: true });
   } catch(e) {
+    weatherAlertCooldown.release(req.worker.id, level);
     res.status(500).json({ success: false, message: e.message });
   }
 });
@@ -1264,30 +1280,34 @@ const NTFY_TOPIC = 'orchard-mcdougall';
   }
 }
 
-initDB().then(() => {
-  app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
+if(require.main === module) {
+  initDB().then(() => {
+    app.listen(PORT, () => console.log('Orchard server running on port ' + PORT));
 
-  // ── DAILY WATER ALERT NOTIFICATION ──
-  // Runs every hour, fires ntfy at 5am Pacific
-  sendMorningWaterAlerts();
+    // ── DAILY WATER ALERT NOTIFICATION ──
+    // Runs every hour, fires ntfy at 5am Pacific
+    sendMorningWaterAlerts();
 
-  // Check every hour — fire at 4am Pacific for notifications, midnight Pacific to refresh alerts
-  setInterval(async () => {
-    const now = new Date();
-    const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
-      timeZone:'America/Los_Angeles', hour:'numeric', hour12:false
-    }).format(now));
-    // Refresh water alerts at midnight Pacific so dots are accurate all day
-    if(pacificHour === 0) {
-      await updateWaterAlerts();
-      console.log('Midnight water alert refresh done');
-    }
-    // Send morning notification at 4am
-    if(pacificHour === 4) {
-      await sendMorningWaterAlerts();
-    }
-  }, 60 * 60 * 1000); // every hour
+    // Check every hour — fire at 4am Pacific for notifications, midnight Pacific to refresh alerts
+    setInterval(async () => {
+      const now = new Date();
+      const pacificHour = parseInt(new Intl.DateTimeFormat('en-US',{
+        timeZone:'America/Los_Angeles', hour:'numeric', hour12:false
+      }).format(now));
+      // Refresh water alerts at midnight Pacific so dots are accurate all day
+      if(pacificHour === 0) {
+        await updateWaterAlerts();
+        console.log('Midnight water alert refresh done');
+      }
+      // Send morning notification at 4am
+      if(pacificHour === 4) {
+        await sendMorningWaterAlerts();
+      }
+    }, 60 * 60 * 1000); // every hour
 
-}).catch(e => {
-  console.error('Startup error:', e.message);
-});
+  }).catch(e => {
+    console.error('Startup error:', e.message);
+  });
+}
+
+module.exports = { app, pool, getSession, requireAuth, requireAdmin };
