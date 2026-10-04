@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#001428">
+<meta name="theme-color" content="#0A1D16">
 <title>Orchard Admin</title>
 <style>
   :root{--navy-950:#001428;--navy-900:#002244;--surface:#061e34;--surface-raised:#0a2942;--green:#69be28;--green-soft:#b1dc82;--amber:#ffcc00;--text:#f4f7f2;--muted:#aab8c2;--line:rgba(177,220,130,.18);--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px}
@@ -93,15 +93,16 @@
   @media(max-width:560px){.container{padding:14px}.header{padding:18px;margin-bottom:20px}.header h1{font-size:20px}.header>div:first-child{width:100%}.header>div:nth-child(2){width:100%;align-items:flex-start!important;flex-wrap:wrap}.header-links{order:2}.header-link{font-size:13px;padding:9px 11px}.nav-group-label{display:none}.filters-card{padding:18px;margin-bottom:18px}.filters-grid{grid-template-columns:1fr;gap:14px}.totals-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.total-card{padding:16px}.total-num{font-size:28px}.filter-actions>*{flex:1 1 auto}.table-header{padding:16px}.table-card{border-radius:12px}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
+<link rel="stylesheet" href="/orchard-premium.css">
 </head>
-<body>
+<body class="page-admin">
 <div class="container">
 
   <!-- HEADER -->
   <div class="header">
     <div>
-      <h1>🌿 Orchard Admin</h1>
-      <p>McDougall Family Farming — Session Records</p>
+      <h1><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9"/><path d="M12 13c-4 0-6-2.5-6-6 4 0 6 2.5 6 6Z"/><path d="M12 10c0-3.4 2.1-5.5 6-5.5 0 3.7-2.1 5.5-6 5.5Z"/></svg></span>Orchard<span>Field</span> Admin</h1>
+      <p>McDougall Family Farming · Operations</p>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <div id="weather-badge" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#001428;border:1px solid rgba(105,190,40,0.3);cursor:pointer" title="">
