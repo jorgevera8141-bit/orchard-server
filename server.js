@@ -943,6 +943,16 @@ app.post('/api/weather/alert', requireAuth, async (req, res) => {
 // ── UPDATE WATER ALERTS ──
 async function updateWaterAlerts(){
   try {
+    // Season-pause switch: set ALERTS_PAUSED=true in Railway when the season ends.
+    // Leaves next_water, cycle_days, and all history completely untouched — this
+    // only stops the status badge from flipping to Due/Soon once the season's
+    // last next_water date passes. Remove the variable next season to resume;
+    // real values pick back up exactly where they are, nothing was deleted.
+    if (process.env.ALERTS_PAUSED === 'true') {
+      await pool.query("UPDATE orchard_blocks SET water_alert='⏸ Paused'");
+      console.log('Water alerts paused — skipped Due/Soon recalculation');
+      return;
+    }
     // Fetch next_water as a plain text string, not a JS Date object — avoids all
     // container-timezone ambiguity from Date parsing (the previous version assumed
     // the container runs in UTC; on this deployment it's actually America/Los_Angeles,
@@ -1246,6 +1256,12 @@ const PORT = process.env.PORT || 3001;
 const NTFY_TOPIC = 'orchard-mcdougall';
   async function sendMorningWaterAlerts(){
   try {
+    // Same season-pause switch as updateWaterAlerts — skip the ntfy push entirely
+    // while paused, rather than sending a notification full of stale/frozen dates.
+    if (process.env.ALERTS_PAUSED === 'true') {
+      console.log('Water alerts paused — skipped ntfy push');
+      return;
+    }
     const result = await pool.query(
       `SELECT b.name, b.next_water, b.water_alert 
        FROM orchard_blocks b
