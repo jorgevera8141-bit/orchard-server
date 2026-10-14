@@ -539,18 +539,40 @@ function showActiveSessions(){
   });
 }
 
+// Which little sky the weather badge draws. Unknown or missing conditions (older server) draw none.
+function skyFor(condition,isDay){
+  switch(condition){
+    case 'Clear': return isDay===false?'clear-night':'clear-day';
+    case 'Clouds': return 'clouds';
+    case 'Rain': case 'Drizzle': return 'rain';
+    case 'Thunderstorm': return 'storm';
+    case 'Snow': return 'snow';
+    case 'Mist': case 'Fog': case 'Haze': case 'Smoke': case 'Dust': case 'Sand': case 'Ash': return 'fog';
+    default: return '';
+  }
+}
+
 function loadWeather(){
   fetch('/api/weather').then(r=>r.json()).then(function(data){
     if(data.success){
       document.getElementById('weather-temp').textContent=data.temp+'°';
       document.getElementById('weather-desc').textContent=data.humidity+'%';
-      document.getElementById('weather-badge').title=data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      var badge=document.getElementById('weather-badge');
+      badge.title=data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      badge.setAttribute('role','img');
+      badge.setAttribute('aria-label','Weather: '+data.temp+' degrees, '+data.description);
+      var sky=skyFor(data.condition,data.is_day);
+      if(sky){badge.dataset.sky=sky;}else{delete badge.dataset.sky;}
+      if(data.temp>=90){badge.dataset.heat='critical';}else if(data.temp>=88){badge.dataset.heat='warning';}else{delete badge.dataset.heat;}
       var lastTemp=parseInt(localStorage.getItem('last_alert_temp')||'0');
       if(data.temp>=90&&lastTemp<90){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'critical'})});localStorage.setItem('last_alert_temp',String(data.temp));}
       else if(data.temp>=88&&lastTemp<88){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'warning'})});localStorage.setItem('last_alert_temp',String(data.temp));}
       else if(data.temp<88){localStorage.setItem('last_alert_temp','0');}
       var alertEl=document.getElementById('temp-alert');
       if(alertEl){
+        var wasHidden=alertEl.style.display!=='flex';
+        if(data.temp>=88&&wasHidden){alertEl.classList.remove('alert-in');void alertEl.offsetWidth;alertEl.classList.add('alert-in');}
+        alertEl.classList.toggle('critical',data.temp>=90);
         if(data.temp>=90){alertEl.style.display='flex';alertEl.style.background='rgba(255,68,68,0.9)';alertEl.style.color='#fff';alertEl.innerHTML='🚨 '+data.temp+'°F — Cooling system required! Start foggers immediately.';}
         else if(data.temp>=88){alertEl.style.display='flex';alertEl.style.background='rgba(255,204,0,0.9)';alertEl.style.color='#002244';alertEl.innerHTML='🌫️ '+data.temp+'°F — Foggers recommended. Monitor temperature.';}
         else{alertEl.style.display='none';}

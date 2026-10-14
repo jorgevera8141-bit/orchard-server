@@ -611,7 +611,9 @@ app.get('/api/weather', async (req, res) => {
       feels_like: Math.round(data.main.feels_like),
       humidity: data.main.humidity,
       description: data.weather[0].description,
-      wind: Math.round(data.wind.speed)
+      wind: Math.round(data.wind.speed),
+      condition: data.weather[0].main,
+      is_day: String(data.weather[0].icon || '').endsWith('d')
     });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
