@@ -51,8 +51,6 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:3px solid #b1dc82!important;outline-offset:3px}
 input,select,textarea{font-size:14px!important;min-height:44px}
 #ov-container{width:min(340px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
-#ov-info>div[style*="clip-path"],#ov-irrigation>div[style*="clip-path"],#ov-fert>div[style*="clip-path"]{width:100%!important;height:auto!important;min-height:0;aspect-ratio:1;padding:clamp(44px,15vw,60px) clamp(28px,10vw,40px)!important}
-#ov-info-content{font-size:12px!important;line-height:1.6!important}
 .field-dock{position:fixed;bottom:calc(8px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(456px,calc(100vw - 24px));z-index:30;display:flex;flex-direction:column;gap:8px}
 .field-action-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:rgba(0,20,40,.97);padding:8px;border:1px solid rgba(177,220,130,.24);border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.35);backdrop-filter:blur(14px)}
 .dock-action{appearance:none;min-height:52px;border:1px solid rgba(177,220,130,.2);border-radius:12px;background:var(--navy-900);color:var(--green-soft);font:inherit;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
@@ -62,13 +60,6 @@ input,select,textarea{font-size:14px!important;min-height:44px}
 .more-action-menu[hidden]{display:none}
 .more-action-menu button{appearance:none;width:100%;min-height:48px;padding:10px 14px;text-align:left;background:transparent;border:0;border-radius:10px;color:var(--text);font:inherit;font-size:14px;cursor:pointer}
 .more-action-menu button:hover{background:rgba(105,190,40,.12)}
-.overlay-close,.overlay-step{appearance:none;border:0;border-radius:50%;width:44px;height:44px;background:rgba(0,0,0,.18);color:inherit;font:inherit;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10}
-.overlay-close{position:absolute;top:10px;right:10px}
-.overlay-step{position:absolute;left:50%;transform:translateX(-50%);background:rgba(0,20,40,.18)}
-.overlay-step.next{bottom:clamp(44px,15vw,70px);font-size:24px}
-.overlay-step.previous{top:clamp(44px,15vw,70px);font-size:20px}
-.overlay-action{appearance:none;width:min(100%,220px);min-height:50px;padding:12px 16px;border:1px solid rgba(177,220,130,.4);border-radius:12px;background:rgba(255,255,255,.12);color:white;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
-.overlay-action.danger{border-color:#ff7770;background:rgba(255,68,68,.16)}
 @media(max-width:360px){.header{padding:12px}.header-title h1{font-size:15px}.header-title p{font-size:12px}.field-action-bar{gap:5px;padding:6px}.dock-action{font-size:12px;min-height:50px}.legend{gap:12px;padding:9px}.card-sub{font-size:11px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
@@ -119,35 +110,33 @@ input,select,textarea{font-size:14px!important;min-height:44px}
 <div id="ov-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.1);z-index:101;width:340px;transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1)">
 
   <div id="ov-info" style="display:block;position:relative">
-    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
-    <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#c8d4e0;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span id="ov-name" style="font-size:16px;font-weight:900;font-family:Georgia,serif;color:#1a1a2e"></span>
-        <span id="ov-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0"></span>
-      </div>
-      <div id="ov-info-content" style="font-size:10px;color:#334;font-family:monospace;line-height:1.8;text-align:left;width:100%"></div>
-      <button type="button" class="overlay-step next" aria-label="Show irrigation details" onclick="showOvLayer('ov-irrigation')">↓</button>
+    <div class="ov-card">
+      <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
+      <div class="ov-head"><span class="ov-title" id="ov-name"></span><span class="ov-dot" id="ov-dot"></span></div>
+      <div class="ov-tabs" role="group" aria-label="Block sections"><button type="button" class="ov-tab" aria-current="true" onclick="showOvLayer('ov-info')">Info</button><button type="button" class="ov-tab" onclick="showOvLayer('ov-irrigation')">Irrigation</button><button type="button" class="ov-tab" onclick="showOvLayer('ov-fert')">Fertilizer</button></div>
+      <div id="ov-info-content" class="ov-body"></div>
     </div>
   </div>
 
   <div id="ov-irrigation" style="display:none;position:relative">
-    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
-    <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#002f6c;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
-      <button type="button" class="overlay-step previous" aria-label="Show block overview" onclick="showOvLayer('ov-info')">↑</button>
-      <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:8px" id="ov-name-irr"></div>
-      <div id="ov-live-timer">00:00:00</div>
-      <div id="ov-timer-label">Active session</div>
-      <div id="ov-irr-buttons" style="display:flex;flex-direction:column;gap:12px;width:160px"></div>
-      <button type="button" class="overlay-step next" aria-label="Show fertilizer actions" onclick="showOvLayer('ov-fert')">↓</button>
+    <div class="ov-card">
+      <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
+      <div class="ov-head"><span class="ov-title" id="ov-name-irr"></span></div>
+      <div class="ov-tabs" role="group" aria-label="Block sections"><button type="button" class="ov-tab" onclick="showOvLayer('ov-info')">Info</button><button type="button" class="ov-tab" aria-current="true" onclick="showOvLayer('ov-irrigation')">Irrigation</button><button type="button" class="ov-tab" onclick="showOvLayer('ov-fert')">Fertilizer</button></div>
+      <div class="ov-body">
+        <div id="ov-live-timer">00:00:00</div>
+        <div id="ov-timer-label">Active session</div>
+        <div id="ov-irr-buttons" class="ov-body"></div>
+      </div>
     </div>
   </div>
 
   <div id="ov-fert" style="display:none;position:relative">
-    <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
-    <div style="clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:#1a4a1a;width:340px;height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;text-align:center;position:relative;">
-      <button type="button" class="overlay-step previous" aria-label="Show irrigation details" onclick="showOvLayer('ov-irrigation')">↑</button>
-      <div style="font-size:14px;font-weight:900;font-family:Georgia,serif;color:#fff;margin-bottom:20px" id="ov-name-fert"></div>
-      <div style="display:flex;flex-direction:column;gap:12px;width:160px">
+    <div class="ov-card">
+      <button type="button" class="overlay-close" aria-label="Close block details" onclick="closeOverlay()">×</button>
+      <div class="ov-head"><span class="ov-title" id="ov-name-fert"></span></div>
+      <div class="ov-tabs" role="group" aria-label="Block sections"><button type="button" class="ov-tab" onclick="showOvLayer('ov-info')">Info</button><button type="button" class="ov-tab" onclick="showOvLayer('ov-irrigation')">Irrigation</button><button type="button" class="ov-tab" aria-current="true" onclick="showOvLayer('ov-fert')">Fertilizer</button></div>
+      <div class="ov-body">
         <button type="button" class="overlay-action" onclick="logAction('Fertilizer')">🌱 Fertilizer</button>
         <button type="button" class="overlay-action" onclick="logAction('Foggers')">🌫️ Foggers</button>
       </div>
@@ -550,18 +539,40 @@ function showActiveSessions(){
   });
 }
 
+// Which little sky the weather badge draws. Unknown or missing conditions (older server) draw none.
+function skyFor(condition,isDay){
+  switch(condition){
+    case 'Clear': return isDay===false?'clear-night':'clear-day';
+    case 'Clouds': return 'clouds';
+    case 'Rain': case 'Drizzle': return 'rain';
+    case 'Thunderstorm': return 'storm';
+    case 'Snow': return 'snow';
+    case 'Mist': case 'Fog': case 'Haze': case 'Smoke': case 'Dust': case 'Sand': case 'Ash': return 'fog';
+    default: return '';
+  }
+}
+
 function loadWeather(){
   fetch('/api/weather').then(r=>r.json()).then(function(data){
     if(data.success){
       document.getElementById('weather-temp').textContent=data.temp+'°';
       document.getElementById('weather-desc').textContent=data.humidity+'%';
-      document.getElementById('weather-badge').title=data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      var badge=document.getElementById('weather-badge');
+      badge.title=data.description+' · Wind: '+data.wind+'mph · Feels: '+data.feels_like+'°';
+      badge.setAttribute('role','img');
+      badge.setAttribute('aria-label','Weather: '+data.temp+' degrees, '+data.description);
+      var sky=skyFor(data.condition,data.is_day);
+      if(sky){badge.dataset.sky=sky;}else{delete badge.dataset.sky;}
+      if(data.temp>=90){badge.dataset.heat='critical';}else if(data.temp>=88){badge.dataset.heat='warning';}else{delete badge.dataset.heat;}
       var lastTemp=parseInt(localStorage.getItem('last_alert_temp')||'0');
       if(data.temp>=90&&lastTemp<90){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'critical'})});localStorage.setItem('last_alert_temp',String(data.temp));}
       else if(data.temp>=88&&lastTemp<88){authFetch('/api/weather/alert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temp:data.temp,level:'warning'})});localStorage.setItem('last_alert_temp',String(data.temp));}
       else if(data.temp<88){localStorage.setItem('last_alert_temp','0');}
       var alertEl=document.getElementById('temp-alert');
       if(alertEl){
+        var wasHidden=alertEl.style.display!=='flex';
+        if(data.temp>=88&&wasHidden){alertEl.classList.remove('alert-in');void alertEl.offsetWidth;alertEl.classList.add('alert-in');}
+        alertEl.classList.toggle('critical',data.temp>=90);
         if(data.temp>=90){alertEl.style.display='flex';alertEl.style.background='rgba(255,68,68,0.9)';alertEl.style.color='#fff';alertEl.innerHTML='🚨 '+data.temp+'°F — Cooling system required! Start foggers immediately.';}
         else if(data.temp>=88){alertEl.style.display='flex';alertEl.style.background='rgba(255,204,0,0.9)';alertEl.style.color='#002244';alertEl.innerHTML='🌫️ '+data.temp+'°F — Foggers recommended. Monitor temperature.';}
         else{alertEl.style.display='none';}
@@ -622,7 +633,8 @@ function openBlock(idx){
   document.getElementById('ov-name-irr').textContent=b.name;
   document.getElementById('ov-name-fert').textContent=b.name;
   document.getElementById('ov-dot').style.background=dot;
-  document.getElementById('ov-info-content').innerHTML='Last Watered: '+escapeHtml(b.lastWatered)+'<br>Next Water: '+escapeHtml(b.nextWater)+'<br>Type: '+escapeHtml(b.irrTypeMain)+'<br>Location: '+escapeHtml(b.location)+'<br>Water Source: '+escapeHtml(b.waterSource)+'<br>Variety: '+escapeHtml(b.variety)+'<br>Total Hours: '+escapeHtml(String(b.totalHours))+'h<br>Cycle: '+escapeHtml(String(b.cycleDays))+' days'+(b.instructions?'<br>Notes: '+escapeHtml(b.instructions):'');
+  var infoRows=[['Last watered',b.lastWatered],['Next water',b.nextWater],['Type',b.irrTypeMain],['Location',b.location],['Water source',b.waterSource],['Variety',b.variety],['Total hours',String(b.totalHours)+'h'],['Cycle',String(b.cycleDays)+' days']];
+  document.getElementById('ov-info-content').innerHTML='<div>'+infoRows.map(function(r){return '<div class="ov-row"><span class="ov-k">'+escapeHtml(r[0])+'</span><span class="ov-v">'+escapeHtml(r[1])+'</span></div>';}).join('')+'</div>'+(b.instructions?'<div class="ov-note"><b>Notes</b><br>'+escapeHtml(b.instructions)+'</div>':'');
 
   if(hasSession||savedSession){
     if(startMs) startLiveTimer(startMs);
